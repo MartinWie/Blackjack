@@ -32,11 +32,11 @@ stale() {
     [ -n "$(find src build.gradle.kts -type f -newer "$1" -print -quit 2>/dev/null)" ]
 }
 
-if stale src/main/resources/static/output.css || [ "$FORCE_BUILD" = true ]; then
+if stale src/jvmMain/resources/static/output.css || [ "$FORCE_BUILD" = true ]; then
     say "Compiling Tailwind..."
     [ -d node_modules ] || npm install --silent
-    npx tailwindcss --minify -i ./src/main/resources/static/input.css \
-                    -o ./src/main/resources/static/output.css >/dev/null 2>&1 \
+    npx tailwindcss --minify -i ./src/jvmMain/resources/static/input.css \
+                    -o ./src/jvmMain/resources/static/output.css >/dev/null 2>&1 \
         || die "Tailwind build failed."
 fi
 

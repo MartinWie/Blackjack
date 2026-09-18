@@ -52,5 +52,6 @@ server_start_success.tmp
 
 .serena/
 
-src/main/resources/static/output.css
+src/jvmMain/resources/static/output.css
 .env
+src/jvmMain/resources/static/vendor/engine.js

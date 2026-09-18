@@ -1,6 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-    content: ["./src/**/*.{html,js,kt}"],
+    // Our sources only: `static/vendor/` holds anime.js and the compiled engine, and
+    // scanning 300 kB of minified bundle for class names finds nothing but costs a
+    // second of every build.
+    content: ["./src/jvmMain/kotlin/**/*.kt", "./src/jvmMain/resources/static/*.js"],
     theme: {
         extend: {
             colors: {

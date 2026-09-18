@@ -7,17 +7,23 @@ WORKDIR /app
 COPY package.json tailwind.config.js ./
 RUN npm install --silent --no-audit --no-fund
 COPY src ./src
-RUN npx tailwindcss --minify -i ./src/main/resources/static/input.css \
-                    -o ./src/main/resources/static/output.css
+RUN npx tailwindcss --minify -i ./src/jvmMain/resources/static/input.css \
+                    -o ./src/jvmMain/resources/static/output.css
 
-# Stage 2 — the jar.
-FROM amazoncorretto:21-alpine AS build
+# Stage 2 — the jar, and the engine bundle that goes in it.
+#
+# glibc, not alpine: this stage compiles the shared rules to JavaScript too, and the
+# Kotlin/JS plugin downloads a Node distribution that musl will not run. Temurin
+# rather than Corretto because Amazon Linux ships without xargs, which gradlew needs.
+FROM eclipse-temurin:21-jdk AS build
 WORKDIR /app
 COPY gradle ./gradle
 COPY gradlew gradle.properties settings.gradle.kts build.gradle.kts ./
 COPY src ./src
-COPY --from=css /app/src/main/resources/static/output.css ./src/main/resources/static/output.css
-RUN chmod +x ./gradlew && ./gradlew build -x test --no-daemon
+COPY --from=css /app/src/jvmMain/resources/static/output.css ./src/jvmMain/resources/static/output.css
+# shadowJar rather than `build`: it pulls in the JS bundle through
+# jvmProcessResources and skips the test tasks entirely.
+RUN chmod +x ./gradlew && ./gradlew shadowJar --no-daemon
 
 # Stage 3 — what actually ships: a JRE and one jar, no Gradle, no node_modules.
 FROM amazoncorretto:21-alpine

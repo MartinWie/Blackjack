@@ -4,6 +4,7 @@
     "daisyui": "^4.12.2"
   },
   "scripts": {
-    "css": "tailwindcss -i ./src/main/resources/static/input.css -o ./src/main/resources/static/output.css --minify"
+    "css": "tailwindcss -i ./src/jvmMain/resources/static/input.css -o ./src/jvmMain/resources/static/output.css --minify",
+    "check:solo": "node tools/solo-session.mjs"
   }
 }

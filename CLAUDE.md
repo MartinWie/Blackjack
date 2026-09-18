@@ -8,15 +8,24 @@ is what a change needs to know.
 
 - **No database.** Rooms live in `RoomRegistry` and die with the process; cash lives
   in the browser's `localStorage`. Do not add persistence without being asked.
-- **The server owns the game.** All rules live in `game/Engine.kt` and `game/Room.kt`.
-  The client renders state and nothing else — if JavaScript ever decides an outcome,
-  that is a bug.
+- **One engine, two targets.** Every rule lives in `src/commonMain` (`game/Engine.kt`,
+  `game/Room.kt`) and is compiled for the JVM and the browser. A shared table runs it
+  on the server; `/solo` runs it in the page via `jsMain/SoloTable.kt`. Writing a rule
+  in JavaScript — or letting `table.js` decide an outcome — is a bug: it would be a
+  second set of rules to keep in agreement.
+- **Solo is always local**, online or off. It creates no room on the server, which is
+  both why it works on a plane and why an idle phone costs the server nothing.
+- `static/vendor/engine.js` is the compiled bundle, produced by the `copyEngine` task
+  and gitignored. Never edit it; `jvmProcessResources` depends on it, so the jar can
+  never ship a stale one.
 - **Numbers live in `models/Constants.kt`.** `Rules` (game) and `Pace` (clocks) are
   injected into the page as `window.BJ`; never hard-code a bet size or payout twice.
 - **One lock per table.** Every mutation goes through `Room.change {}`, which bumps
   the version the sweep broadcasts on. State read outside the lock is a snapshot.
-- **Offline matters.** No CDN, ever: anime.js is vendored. New assets belong in the
-  service worker's `SHELL` list and want a `VERSION` bump in `static/sw.js`.
+- **Offline matters.** No CDN, ever: anime.js and the engine are vendored. New assets
+  belong in the service worker's `SHELL` list and want a `VERSION` bump in
+  `static/sw.js`. A new page that must work offline has to be precached there too —
+  `/solo` is, which is what makes a plane work.
 - Port is 8090 (huus 8080, feedbackr 8081).
 
 ## Watch out for
@@ -41,6 +50,10 @@ is what a change needs to know.
 ## Checks
 
 ```bash
-./gradlew test    # engine + room state machine
-bash start.sh     # Tailwind, jar, run — start.sh rebuilds when src/ is newer
+./gradlew test       # engine + room state machine (JVM and common)
+npm run check:solo   # the offline path: real bundle + real bank.js, 25 rounds in Node
+bash start.sh        # Tailwind, engine bundle, jar, run
 ```
+
+The browser test task is disabled (`js { browser { testTask { enabled = false } } }`)
+— it launches Chrome, which no build container has. `check:solo` covers the bundle.
