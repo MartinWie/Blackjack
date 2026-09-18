@@ -47,6 +47,10 @@ fi
 
 say "Starting..."
 : > "$LOG"
+# The same knobs the image sets, so local behaviour matches the deployment.
+# A fixed small heap locally: MaxRAMPercentage is for the container, and on a laptop
+# with 64 GB it sizes a heap this app will never come close to needing.
+export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:--Xmx256m -XX:+UseSerialGC -XX:MaxMetaspaceSize=128m -XX:MaxDirectMemorySize=128m -Dio.netty.allocator.type=unpooled}"
 nohup java -jar "$JAR" > "$LOG" 2>&1 &
 SERVER_PID=$!
 echo "$SERVER_PID" > "$PID_FILE"

@@ -21,18 +21,29 @@ data class Card(val rank: Rank, val suit: Suit) {
 }
 
 /**
+ * The 52 distinct cards, allocated once for the process.
+ *
+ * A card is immutable, so there is no reason for two tables — or six decks of one
+ * shoe — to hold different objects for the same card. A shoe is then 312 references
+ * rather than 312 objects, and a reshuffle allocates nothing at all.
+ */
+object Deck {
+    val ALL: List<Card> = Suit.entries.flatMap { suit -> Rank.entries.map { rank -> Card(rank, suit) } }
+}
+
+/**
  * A multi-deck shoe. [remaining] drives the cut card; the shoe is never reshuffled
  * mid-round, only between rounds (see [needsShuffle]).
  */
 class Shoe(
-    private val decks: Int = Rules.DECKS,
+    decks: Int = Rules.DECKS,
     private val random: Random = Random.Default,
     /** Test seam: these come off the top before the shuffled shoe does. */
-    private val stacked: List<Card> = emptyList(),
+    stacked: List<Card> = emptyList(),
 ) {
-    private var cards: MutableList<Card> = mutableListOf()
+    private val cards: Array<Card> = Array(decks * Deck.ALL.size) { Deck.ALL[it % Deck.ALL.size] }
     private var dealt = 0
-    private var stackedLeft = stacked.toMutableList()
+    private val stackedLeft = stacked.toMutableList()
 
     init {
         shuffle()
@@ -42,12 +53,14 @@ class Shoe(
     val size: Int get() = cards.size
     val needsShuffle: Boolean get() = remaining < cards.size * Rules.RESHUFFLE_AT
 
+    /** Fisher-Yates over the array it already has — no new list, no garbage. */
     fun shuffle() {
-        cards = buildList {
-            repeat(decks) {
-                Suit.entries.forEach { suit -> Rank.entries.forEach { rank -> add(Card(rank, suit)) } }
-            }
-        }.shuffled(random).toMutableList()
+        for (i in cards.indices.reversed()) {
+            val j = random.nextInt(i + 1)
+            val swap = cards[i]
+            cards[i] = cards[j]
+            cards[j] = swap
+        }
         dealt = 0
     }
 

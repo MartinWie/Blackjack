@@ -125,6 +125,13 @@ stream_rooms 3   rooms those streams belong to — must not exceed `rooms`
 heap_mb 41
 ```
 
+Footprint: about 67 MB idle in a 512 MB container, 110 MB with 25 tables and 50 open
+streams. The image sets `MaxRAMPercentage=70`, SerialGC, an unpooled Netty allocator
+(the pooled one reserves per-core arenas it never returns) and ceilings on metaspace
+and direct memory, so a leak in either surfaces as an error rather than as the kernel
+killing the container. The 52 distinct cards are allocated once for the process — a
+shoe is 312 references and a reshuffle allocates nothing.
+
 A table is handed back when it is empty past its TTL (2 min) **or** untouched for
 three hours — the second rule is the one that matters, because a seat is only freed
 when its player disconnects and a forgotten open tab never does. Streams left over

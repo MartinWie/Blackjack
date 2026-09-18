@@ -12,7 +12,9 @@ object RoomEvents {
 
     class Subscriber(val code: String, val playerId: String) {
         val openedAt: Long = System.nanoTime()
-        val channel = Channel<String>(capacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+        // Two: every payload is a whole table state, so a backed-up client wants the
+        // newest one and nothing else. Eight of them was 8 × ~2 kB held per stream.
+        val channel = Channel<String>(capacity = 2, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     }
 
     private val subscribers = ConcurrentHashMap<String, MutableSet<Subscriber>>()
@@ -41,14 +43,28 @@ object RoomEvents {
         sub.channel.close()
     }
 
-    /** Room codes this object is currently holding streams for. */
+    /** Room codes this object is currently holding streams for. Metrics only. */
     fun codes(): Set<String> = subscribers.keys.toSet()
 
     /** Open streams across every room. */
     fun streamCount(): Int = subscribers.values.sumOf { it.size }
 
-    fun playersOnline(code: String): Set<String> =
-        subscribers[code]?.map { it.playerId }?.toSet() ?: emptySet()
+    /**
+     * Membership without materialising anything: the sweep asks this for every seat
+     * of every room four times a second, and the set it used to build was garbage
+     * before the next tick.
+     */
+    fun isOnline(code: String, playerId: String): Boolean =
+        subscribers[code]?.any { it.playerId == playerId } ?: false
+
+    /** Closes streams for rooms [isAlive] no longer knows about. */
+    fun closeOrphans(isAlive: (String) -> Boolean) {
+        val iterator = subscribers.keys.iterator()
+        while (iterator.hasNext()) {
+            val code = iterator.next()
+            if (!isAlive(code)) closeRoom(code)
+        }
+    }
 
     /** [render] runs once per subscriber — each player sees their own seat. */
     suspend fun publish(code: String, render: suspend (playerId: String) -> String) {

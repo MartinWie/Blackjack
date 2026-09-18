@@ -33,6 +33,19 @@ ARG BUILD_ID=docker
 ENV BJ_BUILD_ID=$BUILD_ID
 ENV APP_PORT=8090
 
+# Memory, for a process meant to stay up for months on a small box:
+#   MaxRAMPercentage  the JVM defaults to a quarter of the container; this app is the
+#                     only thing in it.
+#   SerialGC          one collector thread and the smallest footprint of the lot. The
+#                     heap here is a few tens of MB — there is nothing for a parallel
+#                     collector to earn back.
+#   Netty unpooled    the pooled allocator reserves arenas per core and never gives
+#                     them back. At this traffic the pool is all reservation.
+#   Metaspace/direct  ceilings, so a leak in either shows up as an error rather than
+#                     as the kernel killing the container.
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=70 -XX:+UseSerialGC -XX:MaxMetaspaceSize=128m -XX:MaxDirectMemorySize=128m -Dio.netty.allocator.type=unpooled"
+
+
 # Rooms and their SSE subscribers live in this process's memory. Run ONE replica:
 # a second one is a second set of tables that cannot see the first, and no amount of
 # sticky sessions fixes a player joining a table code that exists on the other node.

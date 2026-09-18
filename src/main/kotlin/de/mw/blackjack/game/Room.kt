@@ -91,6 +91,13 @@ class Room(val code: String, private val shoe: Shoe = Shoe()) {
     val version: Long get() = versionCounter.get()
 
     /**
+     * The version the sweep last broadcast. Lives on the room rather than in a map
+     * keyed by room code, because every such map is one more thing that has to be
+     * cleaned up when a table goes away.
+     */
+    var broadcastVersion: Long = -1
+
+    /**
      * The last time a player did something here — bet, acted, joined or reconnected.
      * [Seat.lastSeen] is updated at every one of those, so this needs no field of its
      * own to fall out of date. An empty table falls back to [emptySince].

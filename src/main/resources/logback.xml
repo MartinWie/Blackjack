@@ -1,0 +1,19 @@
+<configuration>
+    <!-- Without this file the root logger is DEBUG: Netty alone writes ~60 lines per
+         start, and every request line is formatted and written for the life of the
+         process. -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %logger{20} -- %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+
+    <logger name="io.netty" level="WARN"/>
+    <logger name="io.ktor" level="INFO"/>
+    <!-- Room lifecycle at DEBUG is useful when chasing a leak; not in normal running. -->
+    <logger name="de.mw.blackjack.game.RoomRegistry" level="INFO"/>
+</configuration>

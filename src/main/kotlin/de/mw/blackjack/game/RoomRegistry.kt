@@ -28,9 +28,6 @@ object RoomRegistry {
 
     private val rooms = ConcurrentHashMap<String, Room>()
 
-    /** Last version broadcast per room, so a quiet table sends nothing. */
-    private val published = ConcurrentHashMap<String, Long>()
-
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /** Ceiling on live tables — codes are cheap to ask for, rooms are not. */
@@ -80,25 +77,24 @@ object RoomRegistry {
     }
 
     private suspend fun sweep() {
+        if (rooms.isEmpty()) return
         val now = System.currentTimeMillis()
         rooms.values.forEach { room ->
-            val online = RoomEvents.playersOnline(room.code)
             room.seats.forEach { seat ->
                 // Read once: a concurrent leave nulls this out under the room's lock,
                 // and an NPE here would abort the sweep for every other table too.
                 val playerId = seat.playerId ?: return@forEach
-                val connected = playerId in online
+                val connected = RoomEvents.isOnline(room.code, playerId)
                 if (connected != seat.connected) room.setConnected(playerId, connected)
             }
             room.tick(now)
-            if (published[room.code] != room.version) {
-                published[room.code] = room.version
+            if (room.broadcastVersion != room.version) {
+                room.broadcastVersion = room.version
                 RoomEvents.publish(room.code) { playerId -> json.encodeToString(TableState.serializer(), room.snapshot(playerId)) }
             }
         }
         rooms.values.filter { reclaimable(it, now) }.forEach { room ->
             rooms.remove(room.code, room)
-            published.remove(room.code)
             RoomEvents.closeRoom(room.code)
             logger.debug("Dropped room {}", room.code)
         }
@@ -107,9 +103,6 @@ object RoomRegistry {
         // set, but a stream that resolved its room a moment before the drop subscribes
         // *after* it and recreates the entry — a map entry nothing else ever removes,
         // holding a connection the 15 s heartbeat keeps alive indefinitely.
-        RoomEvents.codes().filterNot { rooms.containsKey(it) }.forEach { orphan ->
-            logger.debug("Closing streams left over from dropped room {}", orphan)
-            RoomEvents.closeRoom(orphan)
-        }
+        RoomEvents.closeOrphans { rooms.containsKey(it) }
     }
 }
