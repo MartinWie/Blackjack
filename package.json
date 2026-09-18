@@ -1,0 +1,9 @@
+{
+  "devDependencies": {
+    "tailwindcss": "^3.4.4",
+    "daisyui": "^4.12.2"
+  },
+  "scripts": {
+    "css": "tailwindcss -i ./src/main/resources/static/input.css -o ./src/main/resources/static/output.css --minify"
+  }
+}

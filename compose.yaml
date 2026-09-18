@@ -1,0 +1,20 @@
+services:
+  blackjack:
+    build:
+      context: .
+      args:
+        # Stamped into every asset URL. Anything stable per release works; deploy.sh
+        # passes the git sha.
+        BUILD_ID: ${BUILD_ID:-compose}
+    image: blackjack:${BUILD_ID:-latest}
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8090}:8090"
+    environment:
+      # No default on purpose: an unset key falls back to the public dev one, and
+      # the container says so in its log.
+      SECRET_BJ_SESSION-KEY: ${BJ_SESSION_KEY:?set BJ_SESSION_KEY in .env — see .env.example}
+    # One replica, always. Rooms live in this process's memory; a second container is
+    # a second set of tables nobody can reach from the first.
+    deploy:
+      replicas: 1

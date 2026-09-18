@@ -1,0 +1,9 @@
+.git
+.gradle
+.kotlin
+build
+node_modules
+assets
+server.log
+server.pid
+*.md
