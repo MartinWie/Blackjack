@@ -55,5 +55,9 @@ npm run check:solo   # the offline path: real bundle + real bank.js, 25 rounds i
 bash start.sh        # Tailwind, engine bundle, jar, run
 ```
 
+`kotlin-js-store/yarn.lock` is checked in and verified on every build: after changing
+a JS-side dependency, run `./gradlew kotlinUpgradeYarnLock` or the build fails with
+"Lock file was changed".
+
 The browser test task is disabled (`js { browser { testTask { enabled = false } } }`)
 — it launches Chrome, which no build container has. `check:solo` covers the bundle.

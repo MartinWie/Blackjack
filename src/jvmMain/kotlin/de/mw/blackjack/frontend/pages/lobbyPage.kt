@@ -12,13 +12,13 @@ fun lobbyPage(playerName: String): String = page(
     div(classes = "mx-auto flex min-h-[100dvh] w-full max-w-md flex-col gap-6 px-5 pb-8 pt-[max(1.5rem,env(safe-area-inset-top))]") {
         header(classes = "flex items-center justify-between") {
             div(classes = "flex items-center gap-3") {
-                img(alt = "", src = asset("/static/img/icon-192.png"), classes = "h-14 w-14 rounded-md shadow-lg")
-                div {
-                    p(classes = "text-xs uppercase tracking-[0.35em] text-gold/70") { +"Table 21" }
-                    h1(classes = "font-display text-4xl font-black text-gold drop-shadow") { +"Blackjack" }
+                img(alt = "", src = asset("/static/img/icon-192.png"), classes = "h-12 w-12 shrink-0 rounded-md shadow-lg sm:h-14 sm:w-14")
+                div(classes = "min-w-0") {
+                    p(classes = "text-[10px] uppercase tracking-[0.3em] text-gold/70") { +"Table 21" }
+                    h1(classes = "font-display text-3xl font-black text-gold drop-shadow sm:text-4xl") { +"Blackjack" }
                 }
             }
-            div(classes = "rounded-pill bg-black/30 px-4 py-2 text-right") {
+            div(classes = "shrink-0 rounded-pill bg-black/30 px-3 py-2 text-right") {
                 p(classes = "text-[10px] uppercase tracking-widest text-chalk/50") { +"Cash" }
                 p(classes = "text-xl font-bold text-gold") { id = "cash"; +"—" }
             }
@@ -48,15 +48,23 @@ fun lobbyPage(playerName: String): String = page(
                 +"Create a table"
             }
             div(classes = "flex gap-2") {
-                input(type = InputType.text, classes = "input flex-1 rounded-pill bg-felt-dark text-center text-2xl font-bold uppercase tracking-[0.4em] text-chalk") {
+                // `min-w-0` and `size`: an input's intrinsic width is about twenty
+                // characters, and `flex-1` alone does not let it shrink below that —
+                // on a phone the field stretched the row wider than the screen.
+                //
+                // `text-indent` matches the tracking because letter-spacing is added
+                // after the last character too, which pushes centred text off-centre
+                // by that much.
+                input(type = InputType.text, classes = "input w-full min-w-0 flex-1 rounded-pill bg-felt-dark text-center text-2xl font-bold uppercase tracking-[0.35em] [text-indent:0.35em] text-chalk") {
                     id = "code"
                     placeholder = "CODE"
                     maxLength = "4"
                     autoComplete = false
+                    attributes["size"] = "4"
                     attributes["inputmode"] = "text"
                     attributes["autocapitalize"] = "characters"
                 }
-                button(classes = "btn h-14 rounded-pill border-none bg-chalk/10 px-6 text-chalk") {
+                button(classes = "btn h-14 shrink-0 rounded-pill border-none bg-chalk/10 px-6 text-chalk") {
                     id = "join"
                     +"Join"
                 }
