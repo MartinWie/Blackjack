@@ -2,14 +2,18 @@ package de.mw.blackjack
 
 import de.mw.blackjack.game.Action
 import de.mw.blackjack.game.Room
+import de.mw.blackjack.game.RoomRegistry
 import de.mw.blackjack.models.Card
+import de.mw.blackjack.models.Pace
 import de.mw.blackjack.models.Rank
 import de.mw.blackjack.models.Rules
 import de.mw.blackjack.models.Shoe
 import de.mw.blackjack.models.Suit
+import de.mw.blackjack.realtime.RoomEvents
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -211,5 +215,59 @@ class StackedRoomTest {
         val hand = room.snapshot("p1").seats[0].hands[0]
         assertEquals("BLACKJACK", hand.outcome)
         assertEquals(250, hand.returned)
+    }
+}
+
+/** The rules that hand a table back — the only thing standing between a long-running
+ *  process and a registry full of rooms nobody is playing. */
+class ReclaimTest {
+
+    private val hour = 60 * 60 * 1000L
+
+    @Test
+    fun `an empty room is handed back after its ttl`() = runBlocking {
+        val room = Room("TEST")
+        val now = System.currentTimeMillis()
+        assertFalse(RoomRegistry.reclaimable(room, now))
+        assertTrue(RoomRegistry.reclaimable(room, now + (Pace.EMPTY_ROOM_TTL_SECONDS + 1) * 1000))
+    }
+
+    @Test
+    fun `a table nobody has touched in hours goes too, seat or no seat`() = runBlocking {
+        val room = Room("TEST")
+        room.join("p1", "Ada")
+        val now = System.currentTimeMillis()
+        // Still seated, so the empty rule never fires — a tab left open would hold
+        // this room for the life of the process without the idle rule.
+        assertFalse(room.isEmpty)
+        assertFalse(RoomRegistry.reclaimable(room, now + hour))
+        assertTrue(RoomRegistry.reclaimable(room, now + (Pace.ROOM_IDLE_SECONDS + 1) * 1000))
+    }
+
+    @Test
+    fun `playing keeps the table alive`() = runBlocking {
+        val room = Room("TEST")
+        room.join("p1", "Ada")
+        room.placeBet("p1", 25)
+        assertFalse(RoomRegistry.reclaimable(room, System.currentTimeMillis()))
+    }
+}
+
+class RoomEventsTest {
+
+    @Test
+    fun `closing a room releases its streams and its map entry`() {
+        val sub = RoomEvents.subscribe("ZZZZ", "p1")
+        assertTrue("ZZZZ" in RoomEvents.codes())
+        assertEquals(1, RoomEvents.streamCount())
+
+        RoomEvents.closeRoom("ZZZZ")
+        assertFalse("ZZZZ" in RoomEvents.codes())
+        assertEquals(0, RoomEvents.streamCount())
+        assertTrue(sub.channel.isClosedForSend)
+
+        // Unsubscribing a stream whose room is already gone must not resurrect it.
+        RoomEvents.unsubscribe(sub)
+        assertFalse("ZZZZ" in RoomEvents.codes())
     }
 }

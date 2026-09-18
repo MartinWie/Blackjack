@@ -90,6 +90,16 @@ class Room(val code: String, private val shoe: Shoe = Shoe()) {
 
     val version: Long get() = versionCounter.get()
 
+    /**
+     * The last time a player did something here — bet, acted, joined or reconnected.
+     * [Seat.lastSeen] is updated at every one of those, so this needs no field of its
+     * own to fall out of date. An empty table falls back to [emptySince].
+     */
+    val lastPlayerActivity: Long
+        get() = seats.filter { it.occupied }.maxOfOrNull { it.lastSeen }
+            ?: emptySince
+            ?: System.currentTimeMillis()
+
     // ---- entry points ------------------------------------------------------
 
     /** Seats a player, or returns their existing seat. Null when the table is full. */

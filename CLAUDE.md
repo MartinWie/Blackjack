@@ -21,13 +21,22 @@ is what a change needs to know.
 
 ## Watch out for
 
-- `RoomRegistry.published` and `RoomEvents` subscriber sets are maps keyed by room
-  code — anything added alongside them must be cleaned up in the same sweep, or the
-  process leaks one entry per table ever created.
+- **Anything keyed by room code is a leak waiting to happen.** `RoomRegistry.rooms`,
+  `RoomRegistry.published` and `RoomEvents.subscribers` are all cleaned in one place —
+  the tail of `RoomRegistry.sweep`. A new map keyed the same way belongs there too.
+  `RoomRegistry.reclaimable` is the single rule for when a table is handed back: empty
+  past its TTL, **or** untouched for `Pace.ROOM_IDLE_SECONDS`. The second clause is
+  what bounds a long run — a seat is freed only when its player disconnects, and a tab
+  left open never does.
+- `GET /metrics` reports rooms, streams, stream_rooms and heap. Over a long run all
+  of them must come back down when people stop playing; if `stream_rooms` exceeds
+  `rooms` for more than a sweep, streams are outliving their table.
 - Timers are deliberately absent on a solo table (`Room.armDeadline`). A change that
   arms them unconditionally makes a pocketed phone lose hands.
 - The bankroll reconciliation in `bank.js` is stake-based and idempotent per round.
-  Changing what `stake` or `returned` mean means changing that ledger too.
+  Changing what `stake` or `returned` mean means changing that ledger too. Its
+  `bj.ledger.<code>` keys are pruned on entry (`Bank.pruneLedgers`) — a clean exit is
+  not something a browser can be relied on for.
 
 ## Checks
 

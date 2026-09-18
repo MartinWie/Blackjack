@@ -59,6 +59,7 @@
         window.anime.animate(cashEl, {scale: [1, 1.25, 1], duration: 420, ease: 'out(3)'});
     });
 
+    window.Bank.pruneLedgers(null);
     paintCash();
     window.anime.animate('h1', {opacity: [0, 1], translateY: [12, 0], duration: 520, ease: 'out(3)'});
 })();

@@ -73,6 +73,22 @@ fun Application.configureRouting() {
     routing {
         get("/health") { call.respondText("ok") }
 
+        /**
+         * What the process is holding. Counts only — there is nothing private in a
+         * room code count — and it exists so a long run can be watched: all three
+         * numbers must come back down when people stop playing.
+         */
+        get("/metrics") {
+            val runtime = Runtime.getRuntime()
+            val heapMb = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+            call.respondText(
+                "rooms ${RoomRegistry.count()}\n" +
+                    "streams ${RoomEvents.streamCount()}\n" +
+                    "stream_rooms ${RoomEvents.codes().size}\n" +
+                    "heap_mb $heapMb\n",
+            )
+        }
+
         get("/") {
             val player = call.player()
             call.respondText(lobbyPage(player.name), ContentType.Text.Html)

@@ -60,13 +60,36 @@
         },
 
         /**
+         * One ledger is written per table played. `forget` clears the current one on a
+         * clean exit, but a crashed tab, a killed browser or a phone that never came
+         * back leaves it behind — so over months this is one dead key per table ever
+         * visited. Anything older than a day cannot belong to a live round.
+         */
+        pruneLedgers(keep) {
+            const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+            try {
+                Object.keys(localStorage)
+                    .filter((key) => key.startsWith('bj.ledger.') && key !== this.ledgerKey(keep))
+                    .forEach((key) => {
+                        const ledger = read(key, null);
+                        if (!ledger || typeof ledger.at !== 'number' || ledger.at < cutoff) {
+                            localStorage.removeItem(key);
+                        }
+                    });
+            } catch (e) {
+                /* private mode, or storage disabled — nothing to prune either way. */
+            }
+        },
+
+        /**
          * Folds one table state into the bankroll. Returns what changed, so the table
          * can animate a win without re-deriving it.
          */
         apply(code, state) {
             const seat = (state.seats || []).find((s) => s.you);
             const key = this.ledgerKey(code);
-            const ledger = read(key, {round: 0, charged: 0, settled: 0});
+            const ledger = read(key, {round: 0, charged: 0, settled: 0, at: Date.now()});
+            ledger.at = Date.now();
             let staked = 0;
             let won = 0;
 

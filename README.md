@@ -114,6 +114,23 @@ client would re-download the app for nothing.
 Behind a TLS proxy, SSE must not be buffered — `proxy_buffering off` for `/api/` on
 nginx, or the table updates in bursts.
 
+## Running for a long time
+
+Nothing here grows without a bound, and `GET /metrics` is how that is checked:
+
+```
+rooms 3          tables in the registry
+streams 4        open SSE connections
+stream_rooms 3   rooms those streams belong to — must not exceed `rooms`
+heap_mb 41
+```
+
+A table is handed back when it is empty past its TTL (2 min) **or** untouched for
+three hours — the second rule is the one that matters, because a seat is only freed
+when its player disconnects and a forgotten open tab never does. Streams left over
+from a dropped room are closed by the same sweep. In the browser, per-table ledgers in
+`localStorage` are pruned after a day rather than trusting a clean exit.
+
 ## Layout
 
 ```

@@ -68,6 +68,17 @@ object RoomRegistry {
         }
     }
 
+    /**
+     * Two ways a table is handed back: nobody is sitting at it, or nobody has touched
+     * it in hours. The second is the one that matters over a long run — a seat is only
+     * freed when its player disconnects, and a tab left open never does.
+     */
+    internal fun reclaimable(room: Room, now: Long): Boolean {
+        val empty = room.isEmpty && (room.emptySince ?: now) < now - Pace.EMPTY_ROOM_TTL_SECONDS * 1000
+        val abandoned = room.lastPlayerActivity < now - Pace.ROOM_IDLE_SECONDS * 1000
+        return empty || abandoned
+    }
+
     private suspend fun sweep() {
         val now = System.currentTimeMillis()
         rooms.values.forEach { room ->
@@ -85,15 +96,20 @@ object RoomRegistry {
                 RoomEvents.publish(room.code) { playerId -> json.encodeToString(TableState.serializer(), room.snapshot(playerId)) }
             }
         }
-        // Drop tables nobody is sitting at. Without this the map is a slow leak: one
-        // entry per code anybody ever asked for, each holding a 312-card shoe.
-        rooms.values
-            .filter { it.isEmpty && (it.emptySince ?: now) < now - Pace.EMPTY_ROOM_TTL_SECONDS * 1000 }
-            .forEach { room ->
-                rooms.remove(room.code, room)
-                published.remove(room.code)
-                RoomEvents.closeRoom(room.code)
-                logger.debug("Dropped empty room {}", room.code)
-            }
+        rooms.values.filter { reclaimable(it, now) }.forEach { room ->
+            rooms.remove(room.code, room)
+            published.remove(room.code)
+            RoomEvents.closeRoom(room.code)
+            logger.debug("Dropped room {}", room.code)
+        }
+
+        // Subscriber sets for rooms that no longer exist. `closeRoom` above clears the
+        // set, but a stream that resolved its room a moment before the drop subscribes
+        // *after* it and recreates the entry — a map entry nothing else ever removes,
+        // holding a connection the 15 s heartbeat keeps alive indefinitely.
+        RoomEvents.codes().filterNot { rooms.containsKey(it) }.forEach { orphan ->
+            logger.debug("Closing streams left over from dropped room {}", orphan)
+            RoomEvents.closeRoom(orphan)
+        }
     }
 }

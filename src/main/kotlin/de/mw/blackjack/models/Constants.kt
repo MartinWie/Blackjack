@@ -46,6 +46,16 @@ object Pace {
     const val TICK_MILLIS = 250L
     const val EMPTY_ROOM_TTL_SECONDS = 120L
 
+    /**
+     * How long a table may go untouched before it is reclaimed even though somebody
+     * is still nominally sitting at it.
+     *
+     * Seats are only freed when their player *disconnects*, so a tab left open on a
+     * forgotten table holds its seat — and its room — for the life of the process.
+     * This is the backstop that keeps a month of those from filling the registry.
+     */
+    const val ROOM_IDLE_SECONDS = 3 * 60 * 60L
+
     /** A seat whose player has had no stream and no action this long is freed. */
     const val SEAT_IDLE_SECONDS = 90L
 

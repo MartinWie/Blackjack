@@ -381,19 +381,32 @@
     // ---- stream ------------------------------------------------------------
 
     let stream = null;
+    let probing = false;
 
     function connect() {
         if (stream) stream.close();
         stream = new EventSource('/api/rooms/' + code + '/events');
         stream.addEventListener('state', (event) => render(JSON.parse(event.data)));
         stream.addEventListener('error', () => {
-            // EventSource retries on its own; a table that has been dropped answers
-            // 404 and lands the player back in the lobby.
-            fetch('/api/rooms/' + code + '/state').then((res) => {
-                if (res.status === 404) location.href = '/';
-            });
+            // EventSource retries every 2s on its own, and each retry fires this — so
+            // the probe has to be one at a time, or a server that is down collects a
+            // fetch every two seconds for as long as the tab is open.
+            if (probing) return;
+            probing = true;
+            fetch('/api/rooms/' + code + '/state')
+                .then((res) => {
+                    if (res.status === 404) location.href = '/';
+                })
+                .catch(() => {
+                    /* offline — EventSource keeps trying. */
+                })
+                .finally(() => {
+                    probing = false;
+                });
         });
     }
+
+    window.Bank.pruneLedgers(code);
 
     post('/join').then((result) => {
         if (result === null) {

@@ -14,6 +14,13 @@ services:
       # No default on purpose: an unset key falls back to the public dev one, and
       # the container says so in its log.
       SECRET_BJ_SESSION-KEY: ${BJ_SESSION_KEY:?set BJ_SESSION_KEY in .env — see .env.example}
+    # Not memory, but the same class of problem over a long run: the default json-file
+    # driver keeps every line the container has ever written.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     # One replica, always. Rooms live in this process's memory; a second container is
     # a second set of tables nobody can reach from the first.
     deploy:

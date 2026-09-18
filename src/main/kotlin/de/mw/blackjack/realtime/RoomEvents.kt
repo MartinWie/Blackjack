@@ -41,6 +41,12 @@ object RoomEvents {
         sub.channel.close()
     }
 
+    /** Room codes this object is currently holding streams for. */
+    fun codes(): Set<String> = subscribers.keys.toSet()
+
+    /** Open streams across every room. */
+    fun streamCount(): Int = subscribers.values.sumOf { it.size }
+
     fun playersOnline(code: String): Set<String> =
         subscribers[code]?.map { it.playerId }?.toSet() ?: emptySet()
 
