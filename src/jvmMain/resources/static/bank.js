@@ -9,6 +9,7 @@
  */
 (function () {
     const CASH_KEY = 'bj.cash';
+    const NAME_KEY = 'bj.name';
 
     function read(key, fallback) {
         try {
@@ -55,15 +56,18 @@
             return false;
         },
 
-        /** What to put on the seat of a local table. The cookie is httpOnly, and a
-         *  plane has no server to ask anyway. */
+        /**
+         * Who the money belongs to. Kept next to the cash, and for the same reason:
+         * the session cookie is httpOnly and a plane has no server to ask, so the
+         * only copy the browser can rely on is this one.
+         */
         playerName() {
-            const name = read('bj.name', null);
-            return typeof name === 'string' && name.trim() ? name : 'You';
+            const name = read(NAME_KEY, null);
+            return typeof name === 'string' && name.trim() ? name : '';
         },
 
         rememberName(name) {
-            if (name && name.trim()) write('bj.name', name.trim());
+            if (name && name.trim()) write(NAME_KEY, name.trim().slice(0, 14));
         },
 
         /**

@@ -21,7 +21,7 @@
         cash: $('cash'), dealer: $('dealer-cards'), dealerScore: $('dealer-score'),
         seats: $('seats'), phase: $('phase'), clock: $('clock'), banner: $('banner'),
         chips: $('chips'), betActions: $('bet-actions'), playActions: $('play-actions'),
-        deal: $('deal'), clear: $('clear'), error: $('error'), share: $('share'),
+        deal: $('deal'), clear: $('clear'), error: $('error'), share: $('share'), who: $('who'),
     };
 
     let state = null;
@@ -35,6 +35,13 @@
     function paintCash(flash) {
         els.cash.textContent = '$' + window.Bank.cash;
         if (flash) animate(els.cash, {scale: [1, 1.3, 1], duration: 500, ease: 'out(3)'});
+    }
+
+    /** The seat's own name when the table has one, else what this browser remembers. */
+    function paintName(seatName) {
+        const name = seatName || window.Bank.playerName();
+        els.who.textContent = name || 'Cash';
+        if (name) window.Bank.rememberName(name);
     }
 
     function showError(message) {
@@ -304,6 +311,7 @@
 
         renderControls();
         paintCash(won > 0);
+        paintName((state.seats.find((s) => s.you) || {}).name);
         pruneSeenCards();
 
         deadlineAt = state.deadlineIn === null ? null : Date.now() + state.deadlineIn;
@@ -480,5 +488,6 @@
     }
 
     paintCash(false);
+    paintName(null);
     animate(els.seats, {opacity: [0, 1], duration: 400});
 })();

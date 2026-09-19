@@ -35,8 +35,13 @@ fun tablePage(code: String, local: Boolean = false): String = page(
                     +(if (local) "SOLO" else code)
                 }
             }
-            div(classes = "rounded-pill bg-black/30 px-4 py-2 text-right") {
-                span(classes = "block text-[10px] uppercase tracking-widest text-chalk/50") { +"Cash" }
+            div(classes = "min-w-0 shrink rounded-pill bg-black/30 px-3 py-2 text-right") {
+                // The player's own name captions their money — it is the one place on
+                // the table that is theirs, and the seats are too small to carry it.
+                span(classes = "block max-w-[7rem] truncate text-[10px] uppercase tracking-widest text-chalk/50") {
+                    id = "who"
+                    +"Cash"
+                }
                 span(classes = "block text-lg font-bold text-gold") { id = "cash"; +"—" }
             }
         }

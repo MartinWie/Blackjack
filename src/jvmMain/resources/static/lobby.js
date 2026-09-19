@@ -81,6 +81,12 @@
     window.addEventListener('offline', paintConnectivity);
     paintConnectivity();
 
+    // The page may have come from the cache with somebody else's server-rendered
+    // name in it — or none at all. What this browser last saved wins.
+    const remembered = window.Bank.playerName();
+    if (remembered) $('name').value = remembered;
+    else window.Bank.rememberName($('name').value);
+
     window.Bank.pruneLedgers(null);
     paintCash();
     window.anime.animate('h1', {opacity: [0, 1], translateY: [12, 0], duration: 520, ease: 'out(3)'});
