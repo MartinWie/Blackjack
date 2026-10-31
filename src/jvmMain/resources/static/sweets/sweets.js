@@ -268,6 +268,7 @@
             if (!el) {
                 el = document.createElement('div');
                 el.className = 'tile';
+                el.dataset.colour = t.kind === 'candy' && t.color >= 0 ? COLOURS[t.color] : '#C9B6FF';
                 el.innerHTML = candySvg(t);
                 el.dataset.look = look;
                 const s = spawn.get(t.id);
@@ -290,14 +291,16 @@
             longest = Math.max(longest, ms);
             el.style.transitionDuration = `${ms}ms`;
             place(el, x(i), y(i));
+            // A candy that fell lands with a little squash.
+            if (opt.fall && dist >= 0.5) setTimeout(() => bounce(el, 'land'), ms - 20);
         });
         for (const [id, el] of tiles) {
             if (seen.has(id)) continue;
             tiles.delete(id);
-            el.classList.remove('special-glow', 'pick', 'hint');
+            el.classList.remove('special-glow', 'pick', 'hint', 'land', 'nudge');
+            if (opt.clear) crumbs(el);
             el.classList.add('pop');
-            el.style.transform += ' scale(0.2)';
-            setTimeout(() => el.remove(), 240);
+            setTimeout(() => el.remove(), 300);
         }
         hud(snap);
         return longest;
@@ -403,15 +406,6 @@
         setTimeout(() => els.play.classList.remove(`shake-${strength}`), 700);
     }
 
-    /** A full-screen flash of colour. */
-    function flash(colour) {
-        const f = document.createElement('div');
-        f.className = 'flash';
-        f.style.background = colour;
-        document.body.appendChild(f);
-        f.addEventListener('animationend', () => f.remove(), {once: true});
-    }
-
     /** A comic-book starburst with a word on it. */
     function comic(text, px, py, colour = '#FF5FAE') {
         // Kept inside the board so a burst near an edge is not cut off.
@@ -460,7 +454,6 @@
         const h = fxAt('hammer-fx', cx - size * 0.38, cy - size * 0.38, size, size);
         h.innerHTML = BOOSTERS.hammer.icon;
         await sleep(380);
-        flash('rgba(255,255,255,.85)');
         shake('l');
         shockwave(cx, cy, cell * 5);
         shockwave(cx, cy, cell * 3, 90);
@@ -502,7 +495,6 @@
             t.style.animationDelay = `${120 + k * 45}ms`;
         }
         await sleep(560);
-        flash('rgba(255,236,150,.8)');
         shake('l');
         shockwave(cx, cy, cell * 6);
         shockwave(cx, cy, cell * 3.5, 120);
@@ -519,7 +511,6 @@
         big.textContent = L.type === 'timed' ? '+15s' : '+5';
         Object.assign(big.style, {left: `${r.left + r.width / 2}px`, top: `${r.top + r.height / 2}px`});
         document.body.appendChild(big);
-        flash('rgba(120,230,150,.55)');
         await sleep(650);
         const target = els.counterBox.getBoundingClientRect();
         big.classList.add('go');
@@ -552,7 +543,7 @@
 
     function playFx(fx) {
         if (!fx || !fx.length) return;
-        if (fx.length >= 2 || fx.some((f) => f.kind === 'bomb' || (f.r || 0) >= 2)) { shake('m'); flash('rgba(255,255,255,.45)'); }
+        if (fx.length >= 2 || fx.some((f) => f.kind === 'bomb' || (f.r || 0) >= 2)) shake('m');
         for (const f of fx) {
             const [cx, cy] = centre(f.i);
             if (f.kind === 'line') {
@@ -568,7 +559,6 @@
             } else if (f.kind === 'smash') {
                 fxAt('ring', cx - cell / 2, cy - cell / 2, cell, cell);
             } else if (f.kind === 'bomb') {
-                flash('rgba(255,243,154,.6)');
                 // Lightning from the bomb to everything it takes.
                 (f.targets || []).slice(0, 45).forEach((k, n) => {
                     const [tx, ty] = centre(k);
@@ -585,10 +575,45 @@
         }
     }
 
-    function popup(text, i) {
+    function popup(text, i, colour) {
         const el = fxAt('popup', x(i) + cell / 2, y(i));
         el.textContent = text;
+        if (colour) el.style.setProperty('--tint', colour);
     }
+
+    /** Replays a one-shot class on a tile (land, nudge, nope). */
+    function bounce(el, cls) {
+        if (!el.isConnected) return;
+        el.classList.remove(cls);
+        void el.offsetWidth;
+        el.classList.add(cls);
+        setTimeout(() => el.classList.remove(cls), 420);
+    }
+
+    /** A popped candy breaks into soft crumbs of its own colour. */
+    function crumbs(el) {
+        const m = el.style.transform.match(/-?[\d.]+/g);
+        if (!m) return;
+        const cx = Number(m[0]) + cell / 2, cy = Number(m[1]) + cell / 2;
+        for (let k = 0; k < 5; k++) {
+            const a = (k / 5) * Math.PI * 2 + Math.random(), d = cell * (0.35 + Math.random() * 0.4);
+            const c = fxAt('crumb', cx - 4, cy - 4, 8, 8);
+            c.style.background = el.dataset.colour;
+            c.style.setProperty('--dx', `${Math.cos(a) * d}px`);
+            c.style.setProperty('--dy', `${Math.sin(a) * d}px`);
+        }
+    }
+
+    /** The id of the tile drawn at cell i right now. */
+    function findTileId(i) {
+        for (const [id, el] of tiles) {
+            const m = el.style.transform.match(/-?[\d.]+/g);
+            if (m && Math.round(Number(m[0]) / cell) === i % L.w && Math.round(Number(m[1]) / cell) === Math.floor(i / L.w)) return id;
+        }
+        return null;
+    }
+
+    const tileAt = (snap, i) => snap.cells[i] && snap.cells[i].tile && tiles.get(snap.cells[i].tile.id);
 
     function banner(text) {
         els.banner.textContent = text;
@@ -606,14 +631,27 @@
         for (const ev of events || []) {
             if (mine !== gen) return false;
             if (lastScore === null) lastScore = ev.snap.score;
-            if (ev.t === 'swap') { await sleep(render(ev.snap) + 10); continue; }
+            if (ev.t === 'swap') {
+                const ms = render(ev.snap);
+                await sleep(ms - 30);
+                [ev.a, ev.b].forEach((i) => { const el = tileAt(ev.snap, i); if (el) bounce(el, ev.back ? 'nope' : 'nudge'); });
+                await sleep(ev.back ? 60 : 40);
+                continue;
+            }
             if (ev.t === 'clear') {
                 playFx(ev.fx);
                 if (ev.cascade >= 2) banner(CHEERS[Math.min(ev.cascade, CHEERS.length - 1)]);
                 const gained = ev.snap.score - lastScore;
-                if (gained > 0 && ev.hits.length) popup(`+${gained}`, ev.hits[Math.floor(ev.hits.length / 2)]);
-                render(ev.snap);
-                await sleep(ev.fx && ev.fx.length ? 300 : 230);
+                const mid = ev.hits[Math.floor(ev.hits.length / 2)];
+                const midEl = ev.hits.length ? tiles.get((findTileId(mid)) || -1) : null;
+                if (gained > 0 && ev.hits.length) popup(`+${gained}`, mid, midEl && midEl.dataset.colour);
+                render(ev.snap, {clear: true});
+                (ev.created || []).forEach((i) => {
+                    const el = tileAt(ev.snap, i);
+                    const ring = fxAt('glow-ring', x(i) - cell * 0.25, y(i) - cell * 0.25, cell * 1.5, cell * 1.5);
+                    if (el) ring.style.setProperty('--tint', el.dataset.colour);
+                });
+                await sleep(ev.fx && ev.fx.length ? 320 : 250);
             } else if (ev.t === 'fall') {
                 await sleep(render(ev.snap, {fall: true, spawned: ev.spawned}) + 20);
             } else if (ev.t === 'shuffle') {
