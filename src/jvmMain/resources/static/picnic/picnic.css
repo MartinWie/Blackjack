@@ -142,7 +142,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 .token.front:active { filter: brightness(.95); }
 .token.off { opacity: .45; cursor: default; }
 .token.sent { pointer-events: none; }
-.token.lifted { z-index: 20; transform: translate(-50%, -34px) scale(.8); }
+.token.ghost { position: fixed; z-index: 15; opacity: 1; filter: none; transition: none; }
 .more { position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%); font-size: 11px; font-weight: 900; color: rgba(255, 248, 236, .8); }
 .rule-token { width: 40px; height: 36px; border-radius: 10px; background: var(--c); box-shadow: inset 0 -3px 0 var(--c-dark); display: grid; place-items: center; flex: none; }
 .rule-token .sym { width: 18px; height: 18px; }

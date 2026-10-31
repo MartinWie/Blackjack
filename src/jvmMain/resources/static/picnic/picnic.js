@@ -169,8 +169,12 @@
     // Mirrored on <body> so a test (or a stylesheet) can see when ants are on the move.
     const markBusy = () => document.body.classList.toggle('busy', pending > 0);
 
+    // A save is only replayed onto the very board it was made on: a generator change
+    // moves levels, and replaying taps onto a different board would scramble it.
+    const fingerprint = () => L.lanes.map((l) => l.map((n) => `${n.colour}:${n.count}`).join(',')).join('|');
+
     function persist() {
-        store.game = {mode: store.mode, level: L.level, actions};
+        store.game = {mode: store.mode, level: L.level, board: fingerprint(), actions};
         save();
     }
 
@@ -203,7 +207,7 @@
         actions = [];
         // A board in progress is replayed from its actions.
         const saved = store.game;
-        if (saved && (saved.mode || 'track') === mode && saved.level === L.level && Array.isArray(saved.actions)) {
+        if (saved && (saved.mode || 'track') === mode && saved.level === L.level && saved.board === fingerprint() && Array.isArray(saved.actions)) {
             for (const a of saved.actions) if (apply(a)) actions.push(a);
         }
         persist();
@@ -404,33 +408,16 @@
         els.hole.animate([{transform: 'translateX(-50%) scale(1)'}, {transform: 'translateX(-50%) scale(1.12, .9)'}, {transform: 'translateX(-50%) scale(1)'}], {duration: 200});
     }
 
-    /**
-     * A tapped nest's ants march out one after another in single file: the nest counts
-     * down as each leaves, the seat counts up as each arrives, and the empty nest pops.
-     */
-    async function marchIn(nestEl, seatEl, colour, total, onArrive, mine) {
-        const [fx, fy] = centre(nestEl), [tx, ty] = centre(seatEl);
-        const count = nestEl.querySelector('b');
-        const shown = Math.min(total, 12);
-        const spacing = Math.max(70, Math.min(130, 1300 / shown));
-        const path = curve(fx, fy, tx, ty, 0.18, 18);
-        const walks = [];
-        for (let k = 0; k < shown; k++) {
-            // How many ants this one stands for, so the counts land exactly.
-            const share = Math.round(((k + 1) * total) / shown) - Math.round((k * total) / shown);
-            await sleep2(k ? spacing : 0);
-            if (mine !== gen) return;
-            if (count) count.textContent = Math.max(0, Number(count.textContent) - share);
-            const ant = walker(colour, 18);
-            walks.push(ant.animate(path, {duration: 520, easing: 'cubic-bezier(.4, 0, .5, 1)', fill: 'both'}).finished.then(() => {
-                ant.remove();
-                if (mine === gen) onArrive(share);
-            }));
-        }
-        const base = getComputedStyle(nestEl).transform;
-        nestEl.animate([{transform: base}, {transform: `${base} scale(1.1)`, offset: .4}, {transform: `${base} scale(0)`, opacity: 0}],
-            {duration: 300, easing: 'cubic-bezier(.3, 1.2, .6, 1)', fill: 'forwards'}).finished.then(() => nestEl.remove());
-        await Promise.all(walks);
+    /** The tapped tile glides from its lane into the jar's slot and becomes the jar. */
+    async function glideIn(ghost, seatEl) {
+        const from = ghost.getBoundingClientRect(), to = seatEl.getBoundingClientRect();
+        const dx = to.left + to.width / 2 - (from.left + from.width / 2), dy = to.top + to.height / 2 - (from.top + from.height / 2);
+        await ghost.animate([
+            {transform: 'translate(0, 0) scale(1)'},
+            {transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 18}px) scale(1.08)`, offset: .5},
+            {transform: `translate(${dx}px, ${dy}px) scale(${to.width / from.width})`},
+        ], {duration: 380, easing: 'cubic-bezier(.4, 0, .25, 1)', fill: 'forwards'}).finished;
+        ghost.remove();
     }
 
     /** Plays one event on its seat. Every seat plays its own events in order. */
@@ -439,45 +426,31 @@
         const seat = els.seats.children[ev.seat];
         if (!seat) return;
         if (ev.t === 'dispatch') {
-            let arrived = 0;
-            const arrive = (n) => {
-                arrived += n;
-                if (!view.seats[ev.seat]) {
-                    view.seats[ev.seat] = {id: ev.nest.id, colour: ev.nest.colour, left: arrived};
-                    renderSeats();
-                    const g = seat.querySelector('.group');
-                    if (g) g.animate([{transform: 'scale(.3) translateY(10px)'}, {transform: 'scale(1.15)', offset: .6}, {transform: 'scale(1)'}], {duration: 380, easing: 'cubic-bezier(.3, 1.4, .5, 1)'});
-                } else {
-                    view.seats[ev.seat].left = arrived;
-                    const b = seat.querySelector('.group b');
-                    if (b) b.textContent = arrived;
-                }
-            };
-            if (from && from.isConnected) await marchIn(from, seat, L.palette[ev.nest.colour], ev.left, arrive, mine);
-            else arrive(ev.left);
+            if (from && from.isConnected) await glideIn(from, seat);
             if (mine !== gen) return;
             view.seats[ev.seat] = {id: ev.nest.id, colour: ev.nest.colour, left: ev.left};
             renderSeats();
+            const g = seat.querySelector('.group');
+            if (g) g.animate([{transform: 'scale(.92)'}, {transform: 'scale(1.06)', offset: .55}, {transform: 'scale(1)'}], {duration: 260, easing: 'ease-out'});
         } else if (ev.t === 'eat') {
             const count = seat.querySelector('.group b');
             const step = Math.max(70, Math.min(140, 1400 / ev.cells.length));
-            const trips = ev.cells.map((i, k) => {
+            ev.cells.forEach((i, k) => {
                 setTimeout(() => {
                     if (mine !== gen || !view.seats[ev.seat]) return;
                     view.seats[ev.seat].left--;
                     if (count) count.textContent = Math.max(0, view.seats[ev.seat].left);
                 }, k * step);
-                return fetchBlock(seat, i, L.palette[ev.colour], k * step, mine);
+                fetchBlock(seat, i, L.palette[ev.colour], k * step, mine);
             });
-            await Promise.all(trips);
+            // Done once the last ant has set off: the jar can go while ants walk home.
+            await sleep2((ev.cells.length - 1) * step + 120);
         } else if (ev.t === 'leave') {
             const g = seat.querySelector('.group');
             if (g) {
                 g.classList.add('hop');
-                await g.animate([
-                    {transform: 'none'}, {transform: 'rotate(-14deg)', offset: .2}, {transform: 'rotate(14deg)', offset: .4},
-                    {transform: 'translateY(-26px) scale(.9)', opacity: 1, offset: .75}, {transform: 'translateY(-40px) scale(.5)', opacity: 0},
-                ], {duration: 520, easing: 'ease-in-out', fill: 'forwards'}).finished;
+                await g.animate([{transform: 'scale(1)', opacity: 1}, {transform: 'scale(1.05)', opacity: 1, offset: .3}, {transform: 'scale(.6)', opacity: 0}],
+                    {duration: 300, easing: 'ease-in', fill: 'forwards'}).finished;
                 g.remove();
             }
             if (mine !== gen) return;
@@ -543,13 +516,20 @@
             }
             actions.push(action);
             persist();
+            // The tile leaves its lane at once (the next one slides up); a copy of it
+            // glides to the jar.
+            let ghost = null;
             if (t) {
-                // It stays, lifted above the next nest, until its ants have marched out.
-                t.classList.add('sent', 'lifted');
-                t.classList.remove('front');
+                const rect = t.getBoundingClientRect();
+                ghost = t.cloneNode(true);
+                ghost.classList.remove('front');
+                ghost.classList.add('ghost');
+                Object.assign(ghost.style, {left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`, transform: 'none'});
+                els.fly.appendChild(ghost);
+                t.remove();
             }
             renderLanes();
-            enqueue(events, t);
+            enqueue(events, ghost);
             return;
         }
         let events = null;

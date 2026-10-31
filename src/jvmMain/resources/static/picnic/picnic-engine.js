@@ -148,7 +148,11 @@
         for (let k = 0; k < plan.length;) {
             const run = spec.run[0] + Math.floor(r() * (spec.run[1] - spec.run[0] + 1));
             for (let j = 0; j < run && k < plan.length; j++, k++) lanes[lane].push({id: k + 1, ...plan[k]});
-            lane = (lane + 1 + Math.floor(r() * (spec.lanes - 1))) % spec.lanes;
+            // Next run to the shortest other lane, so no lane runs dry long before the rest.
+            const others = lanes.map((l, k) => k).filter((k) => k !== lane);
+            const fewest = Math.min(...others.map((k) => lanes[k].length));
+            const pick = others.filter((k) => lanes[k].length === fewest);
+            lane = pick[Math.floor(r() * pick.length)];
         }
         lanes.forEach((lane, k) => { if (!lane.length) lanes[k].push(...lanes.find((l) => l.length > 1).splice(-1)); });
         return {label, difficulty, picture: pic.name, palette: pic.palette, grid, lanes, seats: spec.seats, nests: plan.length};
