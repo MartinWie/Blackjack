@@ -362,8 +362,71 @@
         el.className = cls;
         Object.assign(el.style, {left: `${left}px`, top: `${top}px`, width: w ? `${w}px` : '', height: h ? `${h}px` : ''});
         els.fx.appendChild(el);
-        el.addEventListener('animationend', () => el.remove(), {once: true});
+        // Only its own animation: a child's animationend bubbles up too.
+        const done = (e) => { if (e.target === el) { el.removeEventListener('animationend', done); el.remove(); } };
+        el.addEventListener('animationend', done);
         return el;
+    }
+
+    /** Sparkles flying out of a cell's centre. */
+    function sparkle(i, count = 8, spread = 1) {
+        const colours = ['#FFE27A', '#FF8DC8', '#9B7BFF', '#7FE0A0', '#fff'];
+        for (let k = 0; k < count; k++) {
+            const a = (k / count) * Math.PI * 2 + Math.random() * .4, d = cell * (0.6 + Math.random() * 0.6) * spread;
+            const s = fxAt('spark', x(i) + cell / 2 - 5, y(i) + cell / 2 - 5, 10, 10);
+            s.style.background = colours[k % colours.length];
+            s.style.setProperty('--dx', `${Math.cos(a) * d}px`);
+            s.style.setProperty('--dy', `${Math.sin(a) * d}px`);
+        }
+    }
+
+    // --- booster moments ----------------------------------------------------------
+
+    /** The lollipop swings down onto the cell and the board takes the hit. */
+    async function hammerSwing(i) {
+        const h = fxAt('hammer-fx', x(i) - cell * 0.2, y(i) - cell * 1.1, cell * 1.4, cell * 1.4);
+        h.innerHTML = BOOSTERS.hammer.icon;
+        await sleep(330);
+        fxAt('ring', x(i) - cell / 2, y(i) - cell / 2, cell * 2, cell * 2);
+        sparkle(i, 10, 1.3);
+        thud();
+        await sleep(160);
+    }
+
+    /** A sparkle trail between the two cells while they trade places. */
+    function switchTrail(a, b) {
+        for (let k = 0; k <= 6; k++) {
+            const t = k / 6;
+            const s = fxAt('trail', x(a) + (x(b) - x(a)) * t + cell / 2 - 6, y(a) + (y(b) - y(a)) * t + cell / 2 - 6, 12, 12);
+            s.style.animationDelay = `${k * 40}ms`;
+        }
+        [a, b].forEach((i) => fxAt('swirl', x(i), y(i), cell, cell));
+    }
+
+    /** A colour bomb drops in from above the board and lands with a thud. */
+    async function bombDrop(i) {
+        const b = fxAt('bomb-drop', x(i), y(i), cell, cell);
+        b.innerHTML = candySvg({kind: 'candy', special: 'bomb'});
+        b.style.setProperty('--fall', `${-(y(i) + cell * 2)}px`);
+        await sleep(520);
+        thud();
+        fxAt('ring', x(i) - cell / 2, y(i) - cell / 2, cell * 2, cell * 2);
+        sparkle(i, 12, 1.4);
+        await sleep(120);
+    }
+
+    /** "+5" flies from the booster into the moves counter, which bounces. */
+    async function movesFly(from) {
+        await new Promise((done) => window.Gift.fly(BOOSTERS.moves.icon, from, els.counterBox, done));
+        els.counterBox.classList.remove('bump');
+        void els.counterBox.offsetWidth;
+        els.counterBox.classList.add('bump');
+    }
+
+    function thud() {
+        els.board.classList.remove('thud');
+        void els.board.offsetWidth;
+        els.board.classList.add('thud');
     }
 
     function playFx(fx) {
@@ -377,7 +440,16 @@
                 const r = (f.r || 0) * 2 + 1;
                 fxAt('ring', cx - (r - 1) / 2 * cell, cy - (r - 1) / 2 * cell, r * cell, r * cell);
             } else if (f.kind === 'bomb') {
-                (f.targets || []).slice(0, 40).forEach((k) => fxAt('zap', x(k), y(k)));
+                // Lightning from the bomb to everything it takes.
+                (f.targets || []).slice(0, 40).forEach((k, n) => {
+                    const dx = x(k) - cx, dy = y(k) - cy, len = Math.hypot(dx, dy);
+                    if (len > 1) {
+                        const bolt = fxAt('bolt', cx + cell / 2, cy + cell / 2 - 2, len, 4);
+                        bolt.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+                        bolt.style.animationDelay = `${n * 12}ms`;
+                    }
+                    fxAt('zap', x(k), y(k)).style.animationDelay = `${n * 12 + 80}ms`;
+                });
             }
         }
     }
@@ -445,6 +517,7 @@
         setBusy(true);
         clearPick();
         clearTimeout(hintTimer);
+        if (free) switchTrail(a, b);
         if (!(await play(result.events))) return;
         setBusy(false);
         await afterTurn();
@@ -456,6 +529,9 @@
         if (!result) return;
         spend('hammer');
         setBusy(true);
+        const mine = gen;
+        await hammerSwing(i);
+        if (mine !== gen) return;
         if (!(await play(result.events))) return;
         setBusy(false);
         await afterTurn();
@@ -515,6 +591,7 @@
         const result = E.extraMoves(state);
         spend('moves');
         setBusy(true);
+        await movesFly(els.boosters.querySelector('[data-booster="moves"]'));
         banner('+5 moves!');
         if (!(await play(result.events))) return;
         setBusy(false);
@@ -587,6 +664,8 @@
         aim = kind && store.items[kind] ? kind : null;
         clearPick();
         els.tip.classList.toggle('aim', !!aim);
+        els.wrap.classList.toggle('aim-hammer', aim === 'hammer');
+        els.wrap.classList.toggle('aim-switch', aim === 'switch');
         els.tip.textContent = aim ? BOOSTERS[aim].aim : 'Swipe or tap two neighbours to swap them';
         renderBoosters();
     }
@@ -609,9 +688,18 @@
             } else result = E.extraMoves(state);
         } else result = E.plantBomb(state);
         if (!result) return;
+        const button = els.boosters.querySelector(`[data-booster="${key}"]`);
         spend(key);
         setBusy(true);
-        if (key === 'moves') banner('+5 moves!');
+        const mine = gen;
+        if (key === 'moves') {
+            await movesFly(button);
+            banner(L.type === 'timed' ? '+15 seconds!' : '+5 moves!');
+        } else {
+            const ev = result.events.find((e) => e.t === 'sugar');
+            if (ev) await bombDrop(ev.i);
+        }
+        if (mine !== gen) return;
         if (!(await play(result.events))) return;
         setBusy(false);
         await afterTurn();

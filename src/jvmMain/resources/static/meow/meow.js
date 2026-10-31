@@ -1,6 +1,6 @@
 /**
  * Hide & Meow board. Tap or drag to mark a spot with an X, double tap to look under
- * it. Rules, boards and hints come from `meow-engine.js`, faces from `meow-cats.js`;
+ * it. Rules and boards come from `meow-engine.js`, faces from `meow-cats.js`;
  * this file only plays them.
  *
  * Two modes. The track is the engine's LADDER: a hundred levels each of Easy, Medium,
@@ -17,7 +17,6 @@
     const FISH = 3;
     const MAX_FISH = 5;
     const DOUBLE_TAP_MS = 350;
-    const UNDO_DEPTH = 40;
     const DROP_CHANCE = 1 / 7;
     const STORE_KEY = 'meow.v2';
     const COLOURS = ['#5FB3A6', '#EFA163', '#B9607A', '#8C7BC8', '#A9C98D', '#6FA9D6', '#DDA3B3', '#A5B6CF', '#E3BE5A'];
@@ -63,7 +62,7 @@
     const els = {
         level: $('level'), difficulty: $('difficulty'), board: $('board'), pillFill: $('pill-fill'), pillText: $('pill-text'),
         fish: $('fish'), message: $('message'), powerups: $('powerups'),
-        levelsBtn: $('levels-btn'), hintBtn: $('hint-btn'), undoBtn: $('undo-btn'), restartBtn: $('restart-btn'), helpBtn: $('help-btn'),
+        levelsBtn: $('levels-btn'), restartBtn: $('restart-btn'), helpBtn: $('help-btn'),
         sheet: $('sheet'), sheetBody: $('sheet-body'), sheetClose: $('sheet-close'),
     };
 
@@ -92,7 +91,7 @@
     const store = load();
     let board = null;
     let game = null; // {level, marks, found, misses, fish, over, bell}
-    let history = [];
+    let endTimer = null;
 
     function persist() {
         store.game = {
@@ -132,12 +131,12 @@
                 fish: Number(saved.fish) || 0, over: saved.over || null, bell: !!saved.bell,
             }
             : fresh(board.level);
-        history = [];
         save();
         build();
         render();
         const stage = E.stage(store.level);
         const firstOfBand = mode === 'track' && stage.index === 1 && stage.difficulty !== 'easy';
+        if (game.over) showEnd(game.over, 0);
         say(game.over ? game.over : game.found.size ? 'start' : mode !== 'track' && board.level === 1 ? 'endless' : firstOfBand ? 'stepUp' : 'start');
     }
 
@@ -155,6 +154,7 @@
         els.board.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
         els.board.style.gap = n >= 9 ? '3px' : '4px';
         els.board.classList.remove('won');
+        clearTimeout(endTimer);
         els.board.innerHTML = '';
         for (let i = 0; i < n * n; i++) {
             const cell = document.createElement('button');
@@ -208,8 +208,6 @@
         const slots = Math.max(FISH, game.fish);
         if (els.fish.children.length !== slots) els.fish.innerHTML = FISH_SVG.repeat(slots);
         [...els.fish.children].forEach((f, k) => f.classList.toggle('gone', k >= game.fish));
-        els.undoBtn.disabled = !history.length || !!game.over;
-        els.hintBtn.disabled = !!game.over;
         renderPowers();
     }
 
@@ -232,7 +230,14 @@
         const p = document.createElement('p');
         p.textContent = text || (LINES[kind][Math.floor(Math.random() * LINES[kind].length)]);
         els.message.appendChild(p);
-        if (kind === 'won' || kind === 'lost') {
+    }
+
+    /** Next level or Try again fades in over the board once the celebration is over. */
+    function showEnd(kind, delay) {
+        clearTimeout(endTimer);
+        endTimer = setTimeout(() => {
+            const veil = document.createElement('div');
+            veil.className = `board-end ${kind}`;
             const go = document.createElement('button');
             go.className = 'go';
             go.textContent = kind === 'won' ? 'Next level' : 'Try again';
@@ -240,8 +245,9 @@
                 if (kind === 'won') open(store.mode, game.level + 1);
                 else restart();
             });
-            els.message.appendChild(go);
-        }
+            veil.appendChild(go);
+            els.board.appendChild(veil);
+        }, delay);
     }
 
     function hearts(cell) {
@@ -402,20 +408,9 @@
         });
     }
 
-    function clearHint() {
-        els.board.querySelectorAll('.hinted, .focus').forEach((c) => c.classList.remove('hinted', 'focus'));
-    }
-
     // --- moves -----------------------------------------------------------------
 
     const locked = (i) => game.over || game.found.has(i) || game.misses.has(i);
-
-    function remember(snapshot = [...game.marks]) {
-        history.push(snapshot);
-        if (history.length > UNDO_DEPTH) history.shift();
-    }
-
-    const sameMarks = (list) => list.length === game.marks.size && list.every((i) => game.marks.has(i));
 
     function setMark(i, on) {
         if (locked(i) || game.marks.has(i) === on) return;
@@ -425,7 +420,6 @@
 
     function reveal(i) {
         if (locked(i)) return;
-        clearHint();
         game.marks.delete(i);
         const cell = els.board.children[i];
         const bell = game.bell;
@@ -444,7 +438,7 @@
                 const lost = els.fish.children[game.fish];
                 lost.classList.add('swim');
                 lost.addEventListener('animationend', () => { lost.classList.remove('swim'); render(); }, {once: true});
-                if (game.fish <= 0) { game.over = 'lost'; setTimeout(render, 450); say('lost'); mourn(); finished(); }
+                if (game.fish <= 0) { game.over = 'lost'; setTimeout(render, 450); say('lost'); mourn(); showEnd('lost', 3000); finished(); }
                 else { say('miss'); renderPowers(); }
             }
         }
@@ -469,6 +463,7 @@
         render();
         say('won');
         celebrateWin();
+        showEnd('won', 2800);
         if (opened) {
             let gift = null;
             finished((show) => { gift = show; });
@@ -480,7 +475,6 @@
 
     function restart() {
         game = fresh(game.level);
-        history = [];
         persist();
         build();
         render();
@@ -516,7 +510,6 @@
 
     function usePower(key) {
         if (!store.items[key] || game.over) return;
-        clearHint();
         const used = {catnip: useCatnip, yarn: useYarn, fish: useFish, bell: useBell}[key]();
         if (!used) return;
         store.items[key]--;
@@ -548,7 +541,6 @@
             say('start', game.found.size ? 'Nothing left to tidy. The yarn stays in the pouch.' : 'Find a cat first, then the yarn can tidy around it.');
             return false;
         }
-        remember();
         // The marks are real at once; only their appearance is staggered.
         [...ruled].forEach((k, idx) => {
             els.board.children[k].style.setProperty('--mark-delay', `${idx * 25}ms`);
@@ -576,25 +568,7 @@
         return true;
     }
 
-    // --- hint, undo, sheets ------------------------------------------------------
-
-    function showHint() {
-        if (game.over) return;
-        clearHint();
-        const h = E.hint(board, game.found, game.misses, game.marks);
-        if (!h) { say('start', 'Everything that can be known is already on the board.'); return; }
-        (h.focus || []).forEach((k) => els.board.children[k].classList.add('focus'));
-        els.board.children[h.cell].classList.add('hinted');
-        say('start', (h.cat ? 'A cat must be here. ' : 'No cat can be here. ') + h.reason);
-    }
-
-    function undo() {
-        if (!history.length || game.over) return;
-        clearHint();
-        game.marks = new Set(history.pop());
-        persist();
-        render();
-    }
+    // --- sheets ----------------------------------------------------------------
 
     function openSheet(html) {
         els.sheetBody.innerHTML = html;
@@ -628,26 +602,20 @@
         if (current) current.scrollIntoView({block: 'center'});
     }
 
+    const RULES = [
+        ['<svg viewBox="0 0 24 24"><circle cx="8" cy="9" r="4" fill="#5FB3A6"/><circle cx="16" cy="9" r="4" fill="#EFA163"/><circle cx="12" cy="16" r="4" fill="#B9607A"/></svg>', 'One cat per colour'],
+        ['<svg viewBox="0 0 24 24"><path d="M3 12h18M12 3v18" stroke="#A07B68" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="12" r="3.2" fill="#E58A9A"/></svg>', 'One cat per row and column'],
+        ['<svg viewBox="0 0 24 24"><circle cx="7" cy="12" r="4" fill="#E58A9A"/><circle cx="17" cy="12" r="4" fill="#E58A9A"/><path d="M10.5 8.5l3 7M13.5 8.5l-3 7" stroke="#7A4E3A" stroke-width="1.8" stroke-linecap="round"/></svg>', 'Cats never touch, not even at corners'],
+    ];
+
     function showRules() {
-        const powers = POWER_KEYS.map((k) => `<div>${POWERS[k].icon}<p><b>${POWERS[k].name}.</b> ${POWERS[k].what}</p></div>`).join('');
+        const rules = RULES.map(([icon, text]) => `<div>${icon}<p>${text}</p></div>`).join('');
+        const powers = POWER_KEYS.map((k) => `<div>${POWERS[k].icon}<p><b>${POWERS[k].name}:</b> ${POWERS[k].what}</p></div>`).join('');
         openSheet(`<h2>How to play</h2>
-            <p>Every colour hides exactly one cat. Find them all.</p>
-            <ul>
-                <li>One cat per colour.</li>
-                <li>One cat per row and one per column.</li>
-                <li>Cats never touch, not even at the corners.</li>
-            </ul>
-            <h3>Controls</h3>
-            <ul>
-                <li>Tap or drag across spots to mark them with an X.</li>
-                <li>Double tap a spot to look underneath. An empty spot costs a fish.</li>
-                <li>Hint shows the next thing you can know for sure, and why.</li>
-                <li>Undo takes back marks; a look stays looked.</li>
-            </ul>
-            <p>Every board has exactly one answer and can be solved without guessing. Levels get harder as you go.</p>
+            <div class="rule-list">${rules}</div>
+            <p>Tap or drag to mark a spot. Double tap to look underneath; an empty spot costs a fish.</p>
             <h3>Power-ups</h3>
-            <div class="power-list">${powers}</div>
-            <p>After every game, won or lost, there is a one-in-seven chance of a gift with a new power-up inside.</p>`);
+            <div class="power-list">${powers}</div>`);
     }
 
     // --- input -----------------------------------------------------------------
@@ -670,10 +638,8 @@
         const i = cellAt(e.clientX, e.clientY);
         if (i === null || game.over) return;
         e.preventDefault();
-        clearHint();
         const now = performance.now();
         if (lastTap && lastTap.i === i && !lastTap.moved && now - lastTap.at < DOUBLE_TAP_MS) {
-            if (lastTap.recorded) history.pop();
             setMark(i, lastTap.before);
             lastTap = null;
             drag = null;
@@ -681,8 +647,8 @@
             return;
         }
         const before = game.marks.has(i);
-        drag = {mode: !before, last: i, start: [...game.marks]};
-        lastTap = {i, at: now, before, moved: false, recorded: false};
+        drag = {mode: !before, last: i};
+        lastTap = {i, at: now, before, moved: false};
         setMark(i, drag.mode);
         els.board.setPointerCapture(e.pointerId);
     });
@@ -696,10 +662,8 @@
         setMark(i, drag.mode);
     });
 
-    // Undo only records a gesture that changed something.
     const endDrag = () => {
         if (drag) {
-            if (!sameMarks(drag.start)) { remember(drag.start); if (lastTap) lastTap.recorded = true; }
             persist();
             render();
         }
@@ -713,7 +677,7 @@
         const cell = e.target.closest('.cell');
         if (!cell || game.over) return;
         const i = Number(cell.dataset.i);
-        if (e.key === ' ' && !locked(i)) { e.preventDefault(); remember(); setMark(i, !game.marks.has(i)); persist(); render(); }
+        if (e.key === ' ' && !locked(i)) { e.preventDefault(); setMark(i, !game.marks.has(i)); persist(); render(); }
         if (e.key === 'Enter') { e.preventDefault(); reveal(i); }
     });
     // Pointer handling owns taps; a synthesized click must not do anything twice.
@@ -725,8 +689,6 @@
         if (b && !b.disabled) usePower(b.dataset.power);
     });
     els.levelsBtn.addEventListener('click', showLevels);
-    els.hintBtn.addEventListener('click', showHint);
-    els.undoBtn.addEventListener('click', undo);
     els.restartBtn.addEventListener('click', restart);
     els.helpBtn.addEventListener('click', showRules);
     els.sheetClose.addEventListener('click', () => { els.sheet.hidden = true; });

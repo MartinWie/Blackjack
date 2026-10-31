@@ -5,7 +5,7 @@
  * start on a bad connection is instant and a dropped one lands on /offline instead
  * of the browser's error page.
  */
-const VERSION = 'bj-v6';
+const VERSION = 'bj-v7';
 const SHELL = [
     '/',
     '/blackjack',

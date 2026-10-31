@@ -11,13 +11,14 @@ private class Game(
     val icon: String,
     val accent: String,
     val offline: Boolean,
+    val badge: String,
 )
 
 private val games = listOf(
-    Game("/blackjack", "Blackjack", "Solo or at a shared table", "/static/img/icon-192.png", "from-gold/25", offline = true),
-    Game("/meow", "Hide & Meow", "Find the hiding cats · gets trickier as you go", "/static/img/games/meow-192.png", "from-rose-300/25", offline = true),
-    Game("/sweets", "Sweet Swap", "Match three · six kinds of level", "/static/img/games/sweets-192.png", "from-pink-400/25", offline = true),
-    Game("/marbles", "Marbles", "Guess odd or even with friends", "/static/img/games/marbles-192.png", "from-sky-400/25", offline = false),
+    Game("/blackjack", "Blackjack", "Solo or at a shared table", "/static/img/icon-192.png", "from-gold/25", offline = true, badge = "Online/Offline"),
+    Game("/meow", "Hide & Meow", "Find the hiding cats · gets trickier as you go", "/static/img/games/meow-192.png", "from-rose-300/25", offline = true, badge = "Offline"),
+    Game("/sweets", "Sweet Swap", "Match three · six kinds of level", "/static/img/games/sweets-192.png", "from-pink-400/25", offline = true, badge = "Offline"),
+    Game("/marbles", "Marbles", "Guess odd or even with friends", "/static/img/games/marbles-192.png", "from-sky-400/25", offline = false, badge = "Online"),
 )
 
 /** The launcher. Static, so the service worker serves it with no network. */
@@ -37,7 +38,7 @@ fun hubPage(): String = page(pageTitle = "Games", scripts = listOf("/static/hub.
                         p(classes = "text-sm text-chalk/60") { +game.blurb }
                     }
                     span(classes = "status shrink-0 rounded-pill bg-black/30 px-2 py-1 text-[10px] uppercase tracking-widest text-chalk/50") {
-                        +(if (game.offline) "Offline ok" else "Online")
+                        +game.badge
                     }
                 }
             }

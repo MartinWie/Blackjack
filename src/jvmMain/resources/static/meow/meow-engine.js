@@ -307,66 +307,6 @@
         return 0;
     }
 
-    // --- hints -----------------------------------------------------------------
-
-    const UNIT_NAME = {row: 'row', col: 'column', region: 'colour'};
-
-    /**
-     * The next thing the player can know for sure, with the reason, or null. Trusts
-     * only what was revealed (found cats, empty looks), never the player's own Xs, and
-     * skips deductions the player has already marked.
-     */
-    function hint(board, found, empties, marks) {
-        const n = board.size, regions = board.regions, unitList = units(n, regions);
-        const state = {cand: new Array(n * n).fill(true), cat: new Array(n * n).fill(false)};
-        empties.forEach((i) => { state.cand[i] = false; });
-        const fresh = (i) => !marks.has(i) && !found.has(i) && !empties.has(i);
-        for (const f of found) {
-            const fr = Math.floor(f / n), fc = f % n;
-            const near = new Set(neighbours(n, f));
-            for (let k = 0; k < n * n; k++) {
-                if (k === f || !state.cand[k] || !fresh(k)) continue;
-                const why = near.has(k) ? 'It touches a cat you found, and cats never touch.'
-                    : Math.floor(k / n) === fr ? 'A cat you found already sits in this row.'
-                    : k % n === fc ? 'A cat you found already sits in this column.'
-                    : regions[k] === regions[f] ? 'A cat you found already has this colour.' : null;
-                if (why) return {cell: k, cat: false, reason: why, focus: [f]};
-            }
-            placeCat(state, n, regions, f);
-            state.cand[f] = false;
-        }
-        for (let guard = 0; guard < n * n * 4; guard++) {
-            for (const u of unitList) {
-                if (u.cells.some((i) => state.cat[i])) continue;
-                const open = u.cells.filter((i) => state.cand[i]);
-                if (open.length === 1) {
-                    return {cell: open[0], cat: true, reason: `This is the only spot left for a cat in its ${UNIT_NAME[u.kind]}.`, focus: u.cells};
-                }
-            }
-            const step = confinementStep(state, unitList, 3);
-            if (step) {
-                const target = step.cleared.find(fresh);
-                if (target !== undefined) {
-                    const what = step.k === 1
-                        ? `Every spot left in one ${UNIT_NAME[step.from]} lies in the same ${UNIT_NAME[step.into]}, so its cat takes it and the rest of that ${UNIT_NAME[step.into]} stays empty.`
-                        : `${step.k} ${UNIT_NAME[step.from]}s only have spots in the same ${step.k} ${UNIT_NAME[step.into]}s, so their cats fill those and nothing else there can hold one.`;
-                    return {cell: target, cat: false, reason: what, focus: step.group.flatMap((u) => u.cells.filter((i) => state.cand[i]))};
-                }
-                step.cleared.forEach((i) => { state.cand[i] = false; });
-                continue;
-            }
-            let i = lookaheadStep(state, n, regions, unitList, false);
-            if (i < 0) i = lookaheadStep(state, n, regions, unitList, true);
-            if (i >= 0) {
-                if (fresh(i)) return {cell: i, cat: false, reason: 'A cat here would leave some row, column or colour with no spot at all.', focus: []};
-                state.cand[i] = false;
-                continue;
-            }
-            return null;
-        }
-        return null;
-    }
-
-    root.MeowEngine = {DIFFICULTIES, LADDER, BAND, generate, countSolutions, solvable, neighbours, stage, boardFor, endlessBoard, bandEnd, hint};
+    root.MeowEngine = {DIFFICULTIES, LADDER, BAND, generate, countSolutions, solvable, neighbours, stage, boardFor, endlessBoard, bandEnd};
     if (typeof module !== 'undefined') module.exports = root.MeowEngine;
 })(typeof self !== 'undefined' ? self : globalThis);

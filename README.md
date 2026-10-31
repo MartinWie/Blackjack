@@ -123,9 +123,9 @@ names the hardest grade a board may need and the grade it must be too hard for:
 There is no difficulty picker: the track (`LADDER` in the engine) steps up a
 difficulty every hundred levels. Finishing a band unlocks that difficulty's endless
 mode in the level selector — its own boards, seeded far past any track index — and the
-player can switch between it and the track at any time. Hint runs the same solver from what the player
-has revealed (never their own Xs) and explains the next certain step. Undo takes back
-marks only, so a wrong look cannot be bought back. Seven cat breeds (`meow-cats.js`)
+player can switch between it and the track at any time.
+The page keeps to the board: levels, restart and rules on round buttons, and Next level
+or Try again fading in over the board once the win or loss animation is done. Seven cat breeds (`meow-cats.js`)
 blink and twitch on staggered CSS clocks. A find picks one of five entrances (hearts,
 jump, spin, peek, meow) and ripples the cells around it; a win bounces the cats in a
 wave under one of three parties (confetti, fireworks, balloons); an unlock bursts a
@@ -237,7 +237,7 @@ jvmMain/      the server
   resources/static/   bank.js (money), lobby.js, table.js (felt + animation), sw.js
   kotlin/de/mw/marbles/   Marbles: game state, HTMX pages, WebSocket fan-out
   resources/static/marbles/  its own stylesheet and scripts
-  resources/static/meow/     Hide & Meow: meow-engine.js (rules, hints), meow-cats.js, meow.js
+  resources/static/meow/     Hide & Meow: meow-engine.js (rules, levels), meow-cats.js, meow.js
   resources/static/sweets/   Sweet Swap: sweets-engine.js (rules, levels, bot), sweets.js
   resources/static/gift.js   the power-up gift both offline games share
 jsMain/       SoloTable.kt — the browser's handle on a Room; becomes vendor/engine.js
