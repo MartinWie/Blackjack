@@ -15,8 +15,40 @@
     const DROP_CHANCE = 1 / 7;
     const DIFFICULTY = {easy: 'Easy', medium: 'Medium', hard: 'Hard', expert: 'Expert'};
 
-    const ANT = (colour) => `<svg viewBox="0 0 40 40" aria-hidden="true"><g stroke="#3B2A22" stroke-width="2" stroke-linecap="round" fill="none"><path d="M14 18 6 12M14 22 5 22M15 26 7 32M26 18l8-6M26 22h9M25 26l8 6M17 9l-3-6M23 9l3-6"/></g><ellipse cx="20" cy="12" rx="5" ry="4.5" fill="${colour}" stroke="#3B2A22" stroke-width="1.5"/><ellipse cx="20" cy="21" rx="4.5" ry="4" fill="${colour}" stroke="#3B2A22" stroke-width="1.5"/><ellipse cx="20" cy="31" rx="6.5" ry="6" fill="${colour}" stroke="#3B2A22" stroke-width="1.5"/><circle cx="18" cy="11" r="1.1" fill="#3B2A22"/><circle cx="22" cy="11" r="1.1" fill="#3B2A22"/></svg>`;
-    const NEST = (colour) => `<svg viewBox="0 0 60 40" aria-hidden="true"><path d="M4 38C8 16 20 6 30 6s22 10 26 32z" fill="${colour}" stroke="rgba(0,0,0,.25)" stroke-width="2"/><path d="M4 38C8 16 20 6 30 6" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="3" stroke-linecap="round"/><ellipse cx="30" cy="30" rx="7" ry="5" fill="rgba(0,0,0,.35)"/></svg>`;
+    /** A colour mixed toward black (f < 0) or white (f > 0). */
+    function shade(hex, f) {
+        const n = parseInt(hex.slice(1), 16), t = f < 0 ? 0 : 255, p = Math.abs(f);
+        const mix = (v) => Math.round((t - v) * p + v);
+        return `rgb(${mix(n >> 16)}, ${mix((n >> 8) & 255)}, ${mix(n & 255)})`;
+    }
+
+    // The ant wears exactly its pixel colour; its outline and legs are that colour, darker.
+    const ANT = (c) => {
+        const o = shade(c, -0.45), l = shade(c, -0.55);
+        return `<svg class="ant" viewBox="0 0 40 40" aria-hidden="true">`
+            + `<g class="legs" stroke="${l}" stroke-width="2.4" stroke-linecap="round" fill="none"><path d="M14 19 7 14M14 23H6M15 27l-7 5M26 19l7-5M26 23h8M25 27l7 5"/></g>`
+            + `<g stroke="${l}" stroke-width="2" stroke-linecap="round" fill="none"><path d="M17 7 13 2.5M23 7l4-4.5"/></g>`
+            + `<circle cx="13" cy="2.8" r="1.9" fill="${c}" stroke="${o}" stroke-width="1"/><circle cx="27" cy="2.8" r="1.9" fill="${c}" stroke="${o}" stroke-width="1"/>`
+            + `<ellipse cx="20" cy="31" rx="7.5" ry="7" fill="${c}" stroke="${o}" stroke-width="1.6"/>`
+            + `<ellipse cx="20" cy="21" rx="4.6" ry="4.2" fill="${c}" stroke="${o}" stroke-width="1.6"/>`
+            + `<ellipse cx="20" cy="11" rx="6.6" ry="6" fill="${c}" stroke="${o}" stroke-width="1.6"/>`
+            + `<circle cx="17.3" cy="10.2" r="2.4" fill="#fff"/><circle cx="22.7" cy="10.2" r="2.4" fill="#fff"/>`
+            + `<circle cx="17.7" cy="10.7" r="1.2" fill="#2B2B33"/><circle cx="23.1" cy="10.7" r="1.2" fill="#2B2B33"/>`
+            + `<ellipse cx="17" cy="28.5" rx="2.6" ry="1.7" fill="#fff" opacity=".5"/></svg>`;
+    };
+
+    /** A nest: a big rounded pixel in its exact colour, its ant on a little plate. */
+    function token(nest) {
+        const c = L.palette[nest.colour];
+        const t = document.createElement('div');
+        t.className = 'token';
+        t.dataset.id = nest.id;
+        t.style.setProperty('--c', c);
+        t.style.setProperty('--c-dark', shade(c, -0.35));
+        t.style.setProperty('--c-light', shade(c, 0.35));
+        t.innerHTML = `<span class="dish">${ANT(c)}</span><b>${nest.count}</b>`;
+        return t;
+    }
 
     const POWERS = {
         seat: {name: 'Extra seat', what: 'One more seat for waiting ants on this board.',
@@ -64,10 +96,28 @@
     const store = load();
     function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (_) { /* no storage */ } }
 
-    let L = null, s = null, actions = [], busy = false, aim = null, endTimer = null, gen = 0;
+    let L = null, s = null, actions = [], aim = null, endTimer = null, gen = 0, ended = false;
+    // The engine resolves a tap at once; the screen catches up seat by seat. `view` is
+    // what the seats show right now, `queues` holds each seat's animations in order, and
+    // `pending` counts the ones still to play, so taps never wait for ants to walk.
+    let view = {seats: []}, queues = [], pending = 0;
+    // Groups are drawn in the seat that looks free when they arrive, which need not be
+    // the engine's seat (the engine frees a seat the moment its group is done eating).
+    // `placed` maps an engine seat to its current group and on-screen seat; `taken`
+    // marks on-screen seats whose group has not yet hopped off.
+    let placed = [], taken = [];
+    function snapshot() {
+        const seats = new Array(s.seats.length).fill(null);
+        s.seats.forEach((g, k) => {
+            if (!g) return;
+            const v = placed[k] && placed[k].id === g.id ? placed[k].vis : k;
+            seats[seats[v] ? seats.indexOf(null) : v] = {...g};
+        });
+        return {seats};
+    }
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     // Mirrored on <body> so a test (or a stylesheet) can see when ants are on the move.
-    function setBusy(on) { busy = on; document.body.classList.toggle('busy', on); }
+    const markBusy = () => document.body.classList.toggle('busy', pending > 0);
 
     function persist() {
         store.game = {mode: store.mode, level: L.level, actions};
@@ -88,7 +138,13 @@
     function open(mode, level) {
         if (mode !== 'track' && !endlessOpen(mode)) { mode = 'track'; level = store.level; }
         gen++;
-        setBusy(false);
+        queues = [];
+        placed = [];
+        taken = [];
+        pending = 0;
+        ended = false;
+        markBusy();
+        els.fly.innerHTML = '';
         clearTimeout(endTimer);
         store.mode = mode;
         if (mode === 'track') { store.level = Math.max(1, Math.min(level, store.unlocked)); L = E.level(store.level); }
@@ -101,6 +157,7 @@
             for (const a of saved.actions) if (apply(a)) actions.push(a);
         }
         persist();
+        view = snapshot();
         setAim(null);
         build();
         render();
@@ -135,7 +192,7 @@
     // --- drawing ---------------------------------------------------------------------
 
     function render() {
-        s.board.grid.forEach((v, i) => {
+        if (!pending) s.board.grid.forEach((v, i) => {
             const px = els.board.children[i];
             const colour = v >= 0 ? L.palette[v] : '';
             if (px.dataset.c !== colour) {
@@ -149,42 +206,75 @@
         renderPowers();
     }
 
+    /** Seats stay on screen; a group appears, ticks down and hops off in place. */
     function renderSeats() {
-        els.seats.innerHTML = '';
-        s.seats.forEach((g, k) => {
+        const src = view;
+        while (els.seats.children.length < src.seats.length) {
             const seat = document.createElement('button');
-            seat.className = 'seat' + (g ? ' full' : '') + (aim === 'recall' && g ? ' pickable' : '');
-            seat.dataset.seat = k;
-            seat.setAttribute('aria-label', g ? `Seat ${k + 1}: ${g.left} ants waiting` : `Seat ${k + 1}: empty`);
-            if (g) seat.innerHTML = `${ANT(L.palette[g.colour])}<b>${g.left}</b>`;
+            seat.className = 'seat';
+            seat.dataset.seat = els.seats.children.length;
             els.seats.appendChild(seat);
+        }
+        while (els.seats.children.length > src.seats.length) els.seats.lastElementChild.remove();
+        src.seats.forEach((g, k) => {
+            const seat = els.seats.children[k];
+            const group = seat.querySelector('.group');
+            seat.classList.toggle('pickable', aim === 'recall' && !!g);
+            seat.setAttribute('aria-label', g ? `Seat ${k + 1}: ${g.left} ants waiting` : `Seat ${k + 1}: empty`);
+            if (g && (!group || group.dataset.id !== String(g.id))) {
+                if (group) group.remove();
+                const el = document.createElement('div');
+                el.className = 'group';
+                el.dataset.id = g.id;
+                el.innerHTML = `${ANT(L.palette[g.colour])}<b>${g.left}</b>`;
+                seat.appendChild(el);
+                seat.classList.add('full');
+            } else if (g) {
+                group.querySelector('b').textContent = g.left;
+            } else if (group && !group.classList.contains('hop')) {
+                group.remove();
+                seat.classList.remove('full');
+            }
         });
     }
 
+    /** Lanes stay on screen; when a nest leaves, the ones behind glide forward. */
     function renderLanes() {
-        els.lanes.innerHTML = '';
-        els.lanes.style.gridTemplateColumns = `repeat(${s.lanes.length}, 1fr)`;
-        s.lanes.forEach((lane, k) => {
-            const col = document.createElement('div');
-            col.className = 'lane';
-            lane.slice(0, 3).forEach((nest, d) => {
-                const b = document.createElement(d === 0 ? 'button' : 'div');
-                b.className = `nest depth-${d}`;
-                if (d === 0) {
-                    b.dataset.lane = k;
-                    b.setAttribute('aria-label', `Nest of ${nest.count} ants`);
-                    b.disabled = !!s.over;
-                }
-                b.innerHTML = `${NEST(L.palette[nest.colour])}<b>${nest.count}</b>`;
-                col.appendChild(b);
+        const src = s;
+        if (els.lanes.children.length !== src.lanes.length) {
+            els.lanes.innerHTML = '';
+            els.lanes.style.gridTemplateColumns = `repeat(${src.lanes.length}, 1fr)`;
+            src.lanes.forEach(() => {
+                const col = document.createElement('div');
+                col.className = 'lane';
+                col.innerHTML = '<span class="more"></span>';
+                els.lanes.appendChild(col);
             });
-            if (lane.length > 3) {
-                const more = document.createElement('span');
-                more.className = 'more';
-                more.textContent = `+${lane.length - 3}`;
-                col.appendChild(more);
-            }
-            els.lanes.appendChild(col);
+        }
+        src.lanes.forEach((lane, k) => {
+            const col = els.lanes.children[k];
+            const keep = new Set();
+            lane.slice(0, 3).forEach((nest, d) => {
+                let t = col.querySelector(`.token[data-id="${nest.id}"]`);
+                if (!t) {
+                    t = token(nest);
+                    t.style.setProperty('--d', 3);
+                    col.appendChild(t);
+                    t.getBoundingClientRect();
+                }
+                t.querySelector('b').textContent = nest.count;
+                t.style.setProperty('--d', d);
+                t.classList.toggle('front', d === 0);
+                if (d === 0) {
+                    t.dataset.lane = k;
+                    t.setAttribute('role', 'button');
+                    t.setAttribute('aria-label', `Nest of ${nest.count} ants`);
+                    t.classList.toggle('off', !!s.over);
+                }
+                keep.add(String(nest.id));
+            });
+            col.querySelectorAll('.token').forEach((t) => { if (!keep.has(t.dataset.id) && !t.classList.contains('sent')) t.remove(); });
+            col.querySelector('.more').textContent = lane.length > 3 ? `+${lane.length - 3}` : '';
         });
     }
 
@@ -208,90 +298,192 @@
     }
 
     // --- animation -----------------------------------------------------------------------
+    //
+    // Web Animations rather than class toggles, so every motion can follow a curve and
+    // the code knows when it ends.
 
     const centre = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+    const sleep2 = (ms) => new Promise((done) => setTimeout(done, ms));
 
-    /** An ant walks from its seat to a pixel; the pixel crumbles when it arrives. */
-    function antTo(fromEl, i, colour, delay) {
-        const px = els.board.children[i];
-        const [fx, fy] = centre(fromEl), [tx, ty] = centre(px);
-        const ant = document.createElement('div');
-        ant.className = 'walker';
-        ant.innerHTML = ANT(colour);
-        ant.style.left = `${fx - 9}px`;
-        ant.style.top = `${fy - 9}px`;
-        ant.style.transform = `rotate(${Math.atan2(ty - fy, tx - fx) * 180 / Math.PI + 90}deg)`;
-        els.fly.appendChild(ant);
-        setTimeout(() => {
-            ant.style.transitionDuration = '420ms';
-            ant.style.transform += ` translate(0, -${Math.hypot(tx - fx, ty - fy)}px)`;
-        }, delay);
-        setTimeout(() => {
-            ant.remove();
-            px.dataset.c = '';
-            px.classList.add('eaten');
-            for (let k = 0; k < 3; k++) {
-                const c = document.createElement('i');
-                c.className = 'crumb';
-                c.style.background = colour;
-                c.style.setProperty('--dx', `${(Math.random() - 0.5) * 18}px`);
-                c.style.setProperty('--dy', `${Math.random() * 10 + 4}px`);
-                px.appendChild(c);
-                c.addEventListener('animationend', () => c.remove(), {once: true});
-            }
-        }, delay + 430);
+    /** Keyframes along a gentle curve, the ant turned to face where it walks. */
+    function curve(fx, fy, tx, ty, bend, size) {
+        const mx = (fx + tx) / 2 - (ty - fy) * bend, my = (fy + ty) / 2 + (tx - fx) * bend;
+        const frames = [];
+        for (let k = 0; k <= 8; k++) {
+            const t = k / 8, u = 1 - t;
+            const x = u * u * fx + 2 * u * t * mx + t * t * tx, y = u * u * fy + 2 * u * t * my + t * t * ty;
+            const dx = 2 * u * (mx - fx) + 2 * t * (tx - mx), dy = 2 * u * (my - fy) + 2 * t * (ty - my);
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+            const bob = Math.sin(t * Math.PI * 4) * 1.5;
+            frames.push({transform: `translate(${x - size / 2}px, ${y - size / 2 + bob}px) rotate(${angle}deg)`, offset: t});
+        }
+        return frames;
     }
 
-    async function play(events) {
-        const mine = gen;
-        for (const ev of events) {
-            if (mine !== gen) return false;
-            if (ev.t === 'dispatch') {
-                const from = els.lanes.children[ev.lane] && els.lanes.children[ev.lane].querySelector('.nest');
-                if (from) from.classList.add('launch');
-                await sleep(220);
-                renderLanes();
-                renderSeats();
-                const seat = els.seats.children[ev.seat];
-                if (seat) { seat.classList.add('arrive'); }
-            } else if (ev.t === 'eat') {
-                const seat = els.seats.children[ev.seat];
-                const step = Math.max(14, Math.min(45, 900 / ev.cells.length));
-                ev.cells.forEach((i, k) => antTo(seat, i, L.palette[ev.colour], k * step));
-                await sleep(ev.cells.length * step + 460);
-                renderSeats();
-            } else if (ev.t === 'leave') {
-                const seat = els.seats.children[ev.seat];
-                if (seat) seat.classList.add('leaving');
-                await sleep(200);
-                renderSeats();
-            } else if (ev.t === 'recall' || ev.t === 'seat') {
-                render();
-                await sleep(250);
-            }
+    function walker(colour, size = 22) {
+        const el = document.createElement('div');
+        el.className = 'walker';
+        el.style.width = el.style.height = `${size}px`;
+        el.innerHTML = ANT(colour);
+        els.fly.appendChild(el);
+        return el;
+    }
+
+    /** One ant walks out, picks up its pixel and carries it back down the hole. */
+    async function fetchBlock(seatEl, i, colour, delay, mine) {
+        await sleep2(delay);
+        if (mine !== gen) return;
+        const px = els.board.children[i];
+        const [hx, hy] = centre(seatEl), [tx, ty] = centre(px);
+        const ant = walker(colour);
+        ant.insertAdjacentHTML('beforeend', `<i class="block" style="background:${colour}"></i>`);
+        const bend = (Math.random() - 0.5) * 0.6;
+        await ant.animate(curve(hx, hy, tx, ty, bend, 22), {duration: 520, easing: 'cubic-bezier(.45, .05, .55, .95)', fill: 'forwards'}).finished;
+        if (mine !== gen) { ant.remove(); return; }
+        // Grab: the pixel leaves the picture and rides on the ant's back.
+        ant.classList.add('carrying');
+        px.animate([{transform: 'scale(1)'}, {transform: 'scale(1.2)', offset: .4}, {transform: 'scale(0)', opacity: 0}], {duration: 160, easing: 'ease-in', fill: 'forwards'})
+            .finished.then(() => { px.classList.add('gone'); px.getAnimations().forEach((x) => x.cancel()); });
+        await sleep2(110);
+        const home = ant.animate(curve(tx, ty, hx, hy, -bend, 22), {duration: 560, easing: 'cubic-bezier(.45, .05, .55, .95)', fill: 'forwards'});
+        await home.finished;
+        // Down the hole it goes, block and all.
+        const last = home.effect.getKeyframes().at(-1).transform;
+        await ant.animate([{transform: last, opacity: 1}, {transform: `${last} scale(.2)`, opacity: 0}], {duration: 200, easing: 'ease-in', fill: 'forwards'}).finished;
+        ant.remove();
+        if (seatEl.isConnected) seatEl.animate([{transform: 'scale(1)'}, {transform: 'scale(1.08, .92)'}, {transform: 'scale(1)'}], {duration: 180});
+    }
+
+    /** The ants of a tapped nest scatter from where it stood into their seat. */
+    async function flyIn(from, seatEl, colour) {
+        const [tx, ty] = centre(seatEl);
+        const flights = [];
+        for (let k = 0; k < 6; k++) {
+            const ant = walker(colour, 18);
+            flights.push(ant.animate(curve(from[0] + (k - 2.5) * 6, from[1], tx, ty, (k - 2.5) * 0.12, 18), {duration: 420, delay: k * 45, easing: 'cubic-bezier(.4, 0, .4, 1)', fill: 'both'})
+                .finished.then(() => ant.remove()));
         }
+        await Promise.all(flights);
+    }
+
+    /** Plays one event on its seat. Every seat plays its own events in order. */
+    async function animate(ev, from, mine) {
+        if (mine !== gen) return;
+        const seat = els.seats.children[ev.seat];
+        if (!seat) return;
+        if (ev.t === 'dispatch') {
+            if (from) await flyIn(from, seat, L.palette[ev.nest.colour]);
+            if (mine !== gen) return;
+            view.seats[ev.seat] = {id: ev.nest.id, colour: ev.nest.colour, left: ev.left};
+            renderSeats();
+            const g = seat.querySelector('.group');
+            if (g) g.animate([{transform: 'scale(.3) translateY(10px)'}, {transform: 'scale(1.15)', offset: .6}, {transform: 'scale(1)'}], {duration: 380, easing: 'cubic-bezier(.3, 1.4, .5, 1)'});
+        } else if (ev.t === 'eat') {
+            const count = seat.querySelector('.group b');
+            const step = Math.max(70, Math.min(140, 1400 / ev.cells.length));
+            const trips = ev.cells.map((i, k) => {
+                setTimeout(() => {
+                    if (mine !== gen || !view.seats[ev.seat]) return;
+                    view.seats[ev.seat].left--;
+                    if (count) count.textContent = Math.max(0, view.seats[ev.seat].left);
+                }, k * step);
+                return fetchBlock(seat, i, L.palette[ev.colour], k * step, mine);
+            });
+            await Promise.all(trips);
+        } else if (ev.t === 'leave') {
+            const g = seat.querySelector('.group');
+            if (g) {
+                g.classList.add('hop');
+                await g.animate([
+                    {transform: 'none'}, {transform: 'rotate(-14deg)', offset: .2}, {transform: 'rotate(14deg)', offset: .4},
+                    {transform: 'translateY(-26px) scale(.9)', opacity: 1, offset: .75}, {transform: 'translateY(-40px) scale(.5)', opacity: 0},
+                ], {duration: 520, easing: 'ease-in-out', fill: 'forwards'}).finished;
+                g.remove();
+            }
+            if (mine !== gen) return;
+            view.seats[ev.seat] = null;
+            renderSeats();
+        }
+    }
+
+    /** Queues a tap's events on their seats; the game's end shows when all are played. */
+    function enqueue(events, from) {
+        const mine = gen;
+        for (const raw of events) {
+            if (raw.seat === undefined || raw.t === 'seat' || raw.t === 'recall') continue;
+            // Map the engine's seat to the seat this group is drawn in.
+            let vis;
+            if (raw.t === 'dispatch') {
+                vis = taken[raw.seat] ? s.seats.findIndex((_, v) => !taken[v]) : raw.seat;
+                if (vis < 0) vis = raw.seat;
+                taken[vis] = true;
+                placed[raw.seat] = {id: raw.nest.id, vis};
+            } else {
+                vis = placed[raw.seat] ? placed[raw.seat].vis : raw.seat;
+            }
+            const ev = {...raw, seat: vis};
+            if (raw.t === 'leave') {
+                const v = vis;
+                ev.release = () => { taken[v] = false; };
+            }
+            pending++;
+            const k = vis;
+            queues[k] = (queues[k] || Promise.resolve()).then(() => animate(ev, ev.t === 'dispatch' ? from : null, mine)).catch(() => {}).then(() => {
+                if (ev.release) ev.release();
+                if (mine !== gen) return;
+                pending--;
+                markBusy();
+                if (!pending) idle();
+            });
+        }
+        markBusy();
+    }
+
+    /** Everything has played out: the screen matches the engine again. */
+    function idle() {
+        view = snapshot();
         render();
-        return mine === gen;
+        if (s.over && !ended) {
+            ended = true;
+            if (s.over === 'won') win(); else lose();
+        }
     }
 
     // --- turns -----------------------------------------------------------------------------
 
-    async function act(action) {
-        if (busy) return;
+    function act(action) {
+        if (s.over && action.t === 'tap') return;
+        if (action.t === 'tap') {
+            const t = els.lanes.children[action.lane] && els.lanes.children[action.lane].querySelector('.token.front');
+            const from = t ? centre(t) : null;
+            const events = E.tap(s, action.lane);
+            if (!events) {
+                // Every seat taken: the seats shuffle to say so.
+                els.seats.animate([{transform: 'none'}, {transform: 'translateX(-6px)'}, {transform: 'translateX(6px)'}, {transform: 'none'}], {duration: 300});
+                return;
+            }
+            actions.push(action);
+            persist();
+            if (t) {
+                t.classList.add('sent');
+                const base = getComputedStyle(t).transform;
+                t.animate([{transform: base}, {transform: `${base} translateY(-14px) scale(1.12)`, offset: .35}, {transform: `${base} scale(0)`, opacity: 0}],
+                    {duration: 340, easing: 'cubic-bezier(.3, 1.2, .6, 1)', fill: 'forwards'}).finished.then(() => t.remove());
+            }
+            renderLanes();
+            enqueue(events, from);
+            return;
+        }
         let events = null;
-        if (action.t === 'tap') events = E.tap(s, action.lane);
-        else if (action.t === 'seat') events = E.addSeat(s);
+        if (action.t === 'seat') events = E.addSeat(s);
         else if (action.t === 'recall') events = E.recall(s, action.seat);
         if (!events) return;
         actions.push(action);
         persist();
-        setBusy(true);
-        const mine = gen;
-        if (!(await play(events))) return;
-        setBusy(false);
-        if (mine !== gen) return;
-        if (s.over === 'won') win();
-        else if (s.over === 'lost') lose();
+        ended = false;
+        if (action.t === 'seat') view.seats.push(null);
+        else view = snapshot();
+        render();
     }
 
     function win() {
@@ -360,8 +552,7 @@
 
     /** The plate wipes down in a wave and the full picture is served again. */
     async function restart() {
-        if (busy) return;
-        setBusy(true);
+        gen++;
         clearTimeout(endTimer);
         els.plate.querySelectorAll('.board-end').forEach((v) => v.remove());
         store.game = null;
@@ -394,8 +585,9 @@
     }
 
     function usePower(key) {
-        if (busy || !store.items[key]) return;
+        if (!store.items[key]) return;
         if (key === 'recall') {
+            if (pending) { say('start', 'Let the ants finish their trip first.'); return; }
             if (!s.seats.some(Boolean)) { say('start', 'Nobody is waiting. Recall works on a seated group.'); return; }
             setAim(aim === 'recall' ? null : 'recall');
             if (aim) say('start', 'Tap a waiting group to send it back.');
@@ -406,6 +598,7 @@
             store.items.seat--;
             save();
             act({t: 'seat'});
+            ended = false;
             clearTimeout(endTimer);
             els.plate.querySelectorAll('.board-end').forEach((v) => v.remove());
             say('start', 'One more seat on the blanket.');
@@ -465,7 +658,7 @@
         const powers = POWER_KEYS.map((k) => `<div>${POWERS[k].icon}<p><b>${POWERS[k].name}:</b> ${POWERS[k].what}</p></div>`).join('');
         openSheet(`<h2>How to play</h2>
             <div class="list">
-                <div>${NEST('#E5484D')}<p>Tap the front nest of a lane. Its number is how many ants it sends.</p></div>
+                <div><span class="rule-token" style="--c:#E5484D;--c-dark:${shade('#E5484D', -0.35)}">${ANT('#E5484D')}</span><p>Tap the front nest of a lane. Its number is how many ants it sends.</p></div>
                 <div>${ANT('#E5484D')}<p>Ants climb up from the blanket: they eat their own colour, but only a pixel with nothing below it.</p></div>
                 <div>${ANT('#9AA5B1')}<p>Ants that cannot reach anything wait on a seat. All seats full: lunch is over.</p></div>
             </div>
@@ -475,18 +668,23 @@
     // --- input ---------------------------------------------------------------------------
 
     els.lanes.addEventListener('click', (e) => {
-        const b = e.target.closest('[data-lane]');
-        if (b && !b.disabled) act({t: 'tap', lane: Number(b.dataset.lane)});
+        const t = e.target.closest('.token.front');
+        if (t && !t.classList.contains('off') && !t.classList.contains('sent')) act({t: 'tap', lane: Number(t.dataset.lane)});
     });
     els.seats.addEventListener('click', (e) => {
         const b = e.target.closest('[data-seat]');
-        if (!b || aim !== 'recall' || !s.seats[Number(b.dataset.seat)]) return;
+        if (!b || aim !== 'recall' || !view.seats[Number(b.dataset.seat)]) return;
+        const vis = Number(b.dataset.seat);
+        const engineSeat = s.seats.findIndex((g, k) => g && (placed[k] && placed[k].id === g.id ? placed[k].vis : k) === vis);
+        if (engineSeat < 0) return;
         store.items.recall--;
         save();
         setAim(null);
         clearTimeout(endTimer);
         els.plate.querySelectorAll('.board-end').forEach((v) => v.remove());
-        act({t: 'recall', seat: Number(b.dataset.seat)});
+        if (placed[engineSeat]) taken[placed[engineSeat].vis] = false;
+        placed[engineSeat] = null;
+        act({t: 'recall', seat: engineSeat});
         say('start', 'Back to the nest they go.');
     });
     els.powerups.addEventListener('click', (e) => {

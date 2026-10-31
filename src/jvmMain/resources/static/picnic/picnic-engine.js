@@ -254,7 +254,7 @@
         const g = {id: nest.id, colour: nest.colour, left: nest.count * (s.feast ? 2 : 1), dig: s.dig};
         s.feast = false;
         s.dig = false;
-        const events = [{t: 'dispatch', lane, seat, nest}];
+        const events = [{t: 'dispatch', lane, seat, nest, left: g.left}];
         seatGroup(s, g, events);
         return events;
     }
