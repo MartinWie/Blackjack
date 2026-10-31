@@ -57,6 +57,8 @@ fun picnicPage(): String = buildString {
                 div(classes = "plate") {
                     id = "plate"
                     div(classes = "board") { id = "board" }
+                    // Every ant carries its block back down here.
+                    div(classes = "hole") { id = "hole" }
                 }
                 div(classes = "seats") { id = "seats"; attributes["aria-label"] = "Seats for waiting ants" }
                 div(classes = "lanes") { id = "lanes" }

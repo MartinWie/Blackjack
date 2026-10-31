@@ -159,6 +159,10 @@ Hide & Meow (100 levels a difficulty, endless modes after each band), the same g
 drops, and four power-ups: Extra seat, Digger, Recall, Feast. Progress keeps the board
 in progress as its list of actions and replays it.
 
+Nothing depends on telling colours apart: every colour has a symbol (●▲■◆★♥✚◎) on its
+nests and jars, and colour-blind mode (in Rules) stamps it on the picture's pixels too.
+On Hard and Expert the nests behind the front row stay "?" until they reach the front.
+
 ## Sweet Swap
 
 A match-3: four in a row makes a striped candy, an L or T a wrapped one, five a colour

@@ -37,17 +37,67 @@
             + `<ellipse cx="17" cy="28.5" rx="2.6" ry="1.7" fill="#fff" opacity=".5"/></svg>`;
     };
 
-    /** A nest: a big rounded pixel in its exact colour, its ant on a little plate. */
+    // One symbol per colour, so the game never relies on telling colours apart
+    // (red-green colour blindness above all). Shown on nests and jars always, and on
+    // the picture's pixels in colour-blind mode.
+    const SYMBOLS = [
+        '<circle cx="10" cy="10" r="6"/>',
+        '<path d="M10 2.5 17.5 16h-15z"/>',
+        '<rect x="4" y="4" width="12" height="12" rx="1.5"/>',
+        '<path d="M10 2 18 10 10 18 2 10z"/>',
+        '<path d="M10 1.8l2.5 5.1 5.6.7-4.1 3.9 1.1 5.5L10 14.2l-5.1 2.8 1.1-5.5-4.1-3.9 5.6-.7z"/>',
+        '<path d="M10 17.5S2.5 13 2.5 8a4 4 0 0 1 7.5-2 4 4 0 0 1 7.5 2c0 5-7.5 9.5-7.5 9.5z"/>',
+        '<path d="M7.5 2.5h5v5h5v5h-5v5h-5v-5h-5v-5h5z"/>',
+        '<circle cx="10" cy="10" r="5.5" fill="none" stroke-width="3.4"/>',
+    ];
+
+    /** Light or dark ink, whichever reads on this colour. */
+    function ink(hex) {
+        const n = parseInt(hex.slice(1), 16);
+        const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+        return lum > 0.62 ? '#4B3A2F' : '#FFFFFF';
+    }
+
+    function symbol(index, colour, cls = 'sym') {
+        const c = ink(colour);
+        return `<svg class="${cls}" viewBox="0 0 20 20" aria-hidden="true" fill="${c}" stroke="${c}">${SYMBOLS[index % SYMBOLS.length]}</svg>`;
+    }
+
+    /** Hard and Expert keep the nests behind the front row a mystery. */
+    const mysteries = () => L.difficulty === 'hard' || L.difficulty === 'expert';
+
+    /** A nest: a rounded tile in its exact colour, its count, and its colour's symbol. */
     function token(nest) {
-        const c = L.palette[nest.colour];
         const t = document.createElement('div');
         t.className = 'token';
         t.dataset.id = nest.id;
+        paintToken(t, nest, false);
+        return t;
+    }
+
+    function paintToken(t, nest, hidden) {
+        const c = hidden ? '#8C7BC8' : L.palette[nest.colour];
+        t.classList.toggle('mystery', hidden);
         t.style.setProperty('--c', c);
         t.style.setProperty('--c-dark', shade(c, -0.35));
-        t.style.setProperty('--c-light', shade(c, 0.35));
-        t.innerHTML = `<span class="dish">${ANT(c)}</span><b>${nest.count}</b>`;
-        return t;
+        t.style.setProperty('--c-light', shade(c, 0.3));
+        t.style.setProperty('--ink', hidden ? '#fff' : ink(c));
+        t.dataset.look = hidden ? 'mystery' : `${nest.colour}`;
+        t.innerHTML = hidden ? '<b class="q">?</b>' : `${symbol(nest.colour, c)}<b>${nest.count}</b>`;
+    }
+
+    /** A jar on the shelf, in its group's colour, the ant peeking over the rim. */
+    function jar(g) {
+        const c = L.palette[g.colour];
+        const el = document.createElement('div');
+        el.className = 'group';
+        el.dataset.id = g.id;
+        el.style.setProperty('--c', c);
+        el.style.setProperty('--c-dark', shade(c, -0.35));
+        el.style.setProperty('--c-light', shade(c, 0.3));
+        el.style.setProperty('--ink', ink(c));
+        el.innerHTML = `<span class="peek">${ANT(c)}</span>${symbol(g.colour, c)}<b>${g.left}</b>`;
+        return el;
     }
 
     const POWERS = {
@@ -72,7 +122,7 @@
     const $ = (id) => document.getElementById(id);
     const els = {
         level: $('level'), difficulty: $('difficulty'), plate: $('plate'), board: $('board'), seats: $('seats'), lanes: $('lanes'),
-        message: $('message'), powerups: $('powerups'), fly: $('fly'),
+        message: $('message'), powerups: $('powerups'), fly: $('fly'), hole: $('hole'),
         levelsBtn: $('levels-btn'), restartBtn: $('restart-btn'), helpBtn: $('help-btn'),
         sheet: $('sheet'), sheetBody: $('sheet-body'), sheetClose: $('sheet-close'),
     };
@@ -80,7 +130,7 @@
     // --- persistence ----------------------------------------------------------------
 
     function load() {
-        const fresh = {mode: 'track', level: 1, unlocked: 1, endless: {}, game: null, items: {seat: 1, dig: 1, recall: 1, feast: 1}};
+        const fresh = {mode: 'track', level: 1, unlocked: 1, endless: {}, game: null, symbols: false, items: {seat: 1, dig: 1, recall: 1, feast: 1}};
         try {
             const saved = JSON.parse(localStorage.getItem(STORE_KEY));
             if (saved && saved.unlocked >= 1) {
@@ -195,10 +245,12 @@
         if (!pending) s.board.grid.forEach((v, i) => {
             const px = els.board.children[i];
             const colour = v >= 0 ? L.palette[v] : '';
-            if (px.dataset.c !== colour) {
-                px.dataset.c = colour;
+            const look = colour + (store.symbols ? '+' : '');
+            if (px.dataset.look !== look) {
+                px.dataset.look = look;
                 px.style.background = colour || 'transparent';
                 px.classList.toggle('gone', !colour);
+                px.innerHTML = colour && store.symbols ? symbol(v, colour, 'psym') : '';
             }
         });
         renderSeats();
@@ -223,11 +275,7 @@
             seat.setAttribute('aria-label', g ? `Seat ${k + 1}: ${g.left} ants waiting` : `Seat ${k + 1}: empty`);
             if (g && (!group || group.dataset.id !== String(g.id))) {
                 if (group) group.remove();
-                const el = document.createElement('div');
-                el.className = 'group';
-                el.dataset.id = g.id;
-                el.innerHTML = `${ANT(L.palette[g.colour])}<b>${g.left}</b>`;
-                seat.appendChild(el);
+                seat.appendChild(jar(g));
                 seat.classList.add('full');
             } else if (g) {
                 group.querySelector('b').textContent = g.left;
@@ -262,7 +310,9 @@
                     col.appendChild(t);
                     t.getBoundingClientRect();
                 }
-                t.querySelector('b').textContent = nest.count;
+                const hidden = d > 0 && mysteries();
+                if (t.dataset.look !== (hidden ? 'mystery' : `${nest.colour}`)) paintToken(t, nest, hidden);
+                else if (!hidden) t.querySelector('b').textContent = nest.count;
                 t.style.setProperty('--d', d);
                 t.classList.toggle('front', d === 0);
                 if (d === 0) {
@@ -334,11 +384,11 @@
         await sleep2(delay);
         if (mine !== gen) return;
         const px = els.board.children[i];
-        const [hx, hy] = centre(seatEl), [tx, ty] = centre(px);
+        const [sx, sy] = centre(seatEl), [tx, ty] = centre(px), [hx, hy] = centre(els.hole);
         const ant = walker(colour);
         ant.insertAdjacentHTML('beforeend', `<i class="block" style="background:${colour}"></i>`);
         const bend = (Math.random() - 0.5) * 0.6;
-        await ant.animate(curve(hx, hy, tx, ty, bend, 22), {duration: 520, easing: 'cubic-bezier(.45, .05, .55, .95)', fill: 'forwards'}).finished;
+        await ant.animate(curve(sx, sy, tx, ty, bend, 22), {duration: 560, easing: 'cubic-bezier(.45, .05, .55, .95)', fill: 'forwards'}).finished;
         if (mine !== gen) { ant.remove(); return; }
         // Grab: the pixel leaves the picture and rides on the ant's back.
         ant.classList.add('carrying');
@@ -351,7 +401,7 @@
         const last = home.effect.getKeyframes().at(-1).transform;
         await ant.animate([{transform: last, opacity: 1}, {transform: `${last} scale(.2)`, opacity: 0}], {duration: 200, easing: 'ease-in', fill: 'forwards'}).finished;
         ant.remove();
-        if (seatEl.isConnected) seatEl.animate([{transform: 'scale(1)'}, {transform: 'scale(1.08, .92)'}, {transform: 'scale(1)'}], {duration: 180});
+        els.hole.animate([{transform: 'translateX(-50%) scale(1)'}, {transform: 'translateX(-50%) scale(1.12, .9)'}, {transform: 'translateX(-50%) scale(1)'}], {duration: 200});
     }
 
     /**
@@ -684,12 +734,14 @@
 
     function showRules() {
         const powers = POWER_KEYS.map((k) => `<div>${POWERS[k].icon}<p><b>${POWERS[k].name}:</b> ${POWERS[k].what}</p></div>`).join('');
+        const sample = (k, c) => `<span class="rule-token" style="--c:${c};--c-dark:${shade(c, -0.35)}">${symbol(k, c)}</span>`;
         openSheet(`<h2>How to play</h2>
             <div class="list">
-                <div><span class="rule-token" style="--c:#E5484D;--c-dark:${shade('#E5484D', -0.35)}">${ANT('#E5484D')}</span><p>Tap the front nest of a lane. Its number is how many ants it sends.</p></div>
-                <div>${ANT('#E5484D')}<p>Ants climb up from the blanket: they eat their own colour, but only a pixel with nothing below it.</p></div>
-                <div>${ANT('#9AA5B1')}<p>Ants that cannot reach anything wait on a seat. All seats full: lunch is over.</p></div>
+                <div>${sample(0, '#E5484D')}<p>Tap a nest in the front row. Its number is how many ants it sends.</p></div>
+                <div>${sample(1, '#5DBB63')}<p>Ants climb up from the hole and eat their own colour, but only a pixel with nothing below it.</p></div>
+                <div>${sample(4, '#9AA5B1')}<p>Ants that cannot reach anything wait in a jar. All jars full: lunch is over.</p></div>
             </div>
+            <button class="toggle ${store.symbols ? 'on' : ''}" id="symbols-toggle"><span></span>Colour-blind mode: symbols on the picture</button>
             <h3>Power-ups</h3><div class="list">${powers}</div>`);
     }
 
@@ -725,6 +777,16 @@
     els.sheetClose.addEventListener('click', closeSheet);
     els.sheet.addEventListener('click', (e) => {
         if (e.target === els.sheet) closeSheet();
+        const toggle = e.target.closest('#symbols-toggle');
+        if (toggle) {
+            store.symbols = !store.symbols;
+            save();
+            toggle.classList.toggle('on', store.symbols);
+            const was = pending;
+            pending = 0;
+            render();
+            pending = was;
+        }
         const b = e.target.closest('[data-level]');
         if (b && !b.disabled) { closeSheet(); open('track', Number(b.dataset.level)); }
         const m = e.target.closest('[data-mode]');
