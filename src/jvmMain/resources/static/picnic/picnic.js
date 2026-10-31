@@ -354,16 +354,33 @@
         if (seatEl.isConnected) seatEl.animate([{transform: 'scale(1)'}, {transform: 'scale(1.08, .92)'}, {transform: 'scale(1)'}], {duration: 180});
     }
 
-    /** The ants of a tapped nest scatter from where it stood into their seat. */
-    async function flyIn(from, seatEl, colour) {
-        const [tx, ty] = centre(seatEl);
-        const flights = [];
-        for (let k = 0; k < 6; k++) {
+    /**
+     * A tapped nest's ants march out one after another in single file: the nest counts
+     * down as each leaves, the seat counts up as each arrives, and the empty nest pops.
+     */
+    async function marchIn(nestEl, seatEl, colour, total, onArrive, mine) {
+        const [fx, fy] = centre(nestEl), [tx, ty] = centre(seatEl);
+        const count = nestEl.querySelector('b');
+        const shown = Math.min(total, 12);
+        const spacing = Math.max(70, Math.min(130, 1300 / shown));
+        const path = curve(fx, fy, tx, ty, 0.18, 18);
+        const walks = [];
+        for (let k = 0; k < shown; k++) {
+            // How many ants this one stands for, so the counts land exactly.
+            const share = Math.round(((k + 1) * total) / shown) - Math.round((k * total) / shown);
+            await sleep2(k ? spacing : 0);
+            if (mine !== gen) return;
+            if (count) count.textContent = Math.max(0, Number(count.textContent) - share);
             const ant = walker(colour, 18);
-            flights.push(ant.animate(curve(from[0] + (k - 2.5) * 6, from[1], tx, ty, (k - 2.5) * 0.12, 18), {duration: 420, delay: k * 45, easing: 'cubic-bezier(.4, 0, .4, 1)', fill: 'both'})
-                .finished.then(() => ant.remove()));
+            walks.push(ant.animate(path, {duration: 520, easing: 'cubic-bezier(.4, 0, .5, 1)', fill: 'both'}).finished.then(() => {
+                ant.remove();
+                if (mine === gen) onArrive(share);
+            }));
         }
-        await Promise.all(flights);
+        const base = getComputedStyle(nestEl).transform;
+        nestEl.animate([{transform: base}, {transform: `${base} scale(1.1)`, offset: .4}, {transform: `${base} scale(0)`, opacity: 0}],
+            {duration: 300, easing: 'cubic-bezier(.3, 1.2, .6, 1)', fill: 'forwards'}).finished.then(() => nestEl.remove());
+        await Promise.all(walks);
     }
 
     /** Plays one event on its seat. Every seat plays its own events in order. */
@@ -372,12 +389,25 @@
         const seat = els.seats.children[ev.seat];
         if (!seat) return;
         if (ev.t === 'dispatch') {
-            if (from) await flyIn(from, seat, L.palette[ev.nest.colour]);
+            let arrived = 0;
+            const arrive = (n) => {
+                arrived += n;
+                if (!view.seats[ev.seat]) {
+                    view.seats[ev.seat] = {id: ev.nest.id, colour: ev.nest.colour, left: arrived};
+                    renderSeats();
+                    const g = seat.querySelector('.group');
+                    if (g) g.animate([{transform: 'scale(.3) translateY(10px)'}, {transform: 'scale(1.15)', offset: .6}, {transform: 'scale(1)'}], {duration: 380, easing: 'cubic-bezier(.3, 1.4, .5, 1)'});
+                } else {
+                    view.seats[ev.seat].left = arrived;
+                    const b = seat.querySelector('.group b');
+                    if (b) b.textContent = arrived;
+                }
+            };
+            if (from && from.isConnected) await marchIn(from, seat, L.palette[ev.nest.colour], ev.left, arrive, mine);
+            else arrive(ev.left);
             if (mine !== gen) return;
             view.seats[ev.seat] = {id: ev.nest.id, colour: ev.nest.colour, left: ev.left};
             renderSeats();
-            const g = seat.querySelector('.group');
-            if (g) g.animate([{transform: 'scale(.3) translateY(10px)'}, {transform: 'scale(1.15)', offset: .6}, {transform: 'scale(1)'}], {duration: 380, easing: 'cubic-bezier(.3, 1.4, .5, 1)'});
         } else if (ev.t === 'eat') {
             const count = seat.querySelector('.group b');
             const step = Math.max(70, Math.min(140, 1400 / ev.cells.length));
@@ -455,7 +485,6 @@
         if (s.over && action.t === 'tap') return;
         if (action.t === 'tap') {
             const t = els.lanes.children[action.lane] && els.lanes.children[action.lane].querySelector('.token.front');
-            const from = t ? centre(t) : null;
             const events = E.tap(s, action.lane);
             if (!events) {
                 // Every seat taken: the seats shuffle to say so.
@@ -465,13 +494,12 @@
             actions.push(action);
             persist();
             if (t) {
-                t.classList.add('sent');
-                const base = getComputedStyle(t).transform;
-                t.animate([{transform: base}, {transform: `${base} translateY(-14px) scale(1.12)`, offset: .35}, {transform: `${base} scale(0)`, opacity: 0}],
-                    {duration: 340, easing: 'cubic-bezier(.3, 1.2, .6, 1)', fill: 'forwards'}).finished.then(() => t.remove());
+                // It stays, lifted above the next nest, until its ants have marched out.
+                t.classList.add('sent', 'lifted');
+                t.classList.remove('front');
             }
             renderLanes();
-            enqueue(events, from);
+            enqueue(events, t);
             return;
         }
         let events = null;
