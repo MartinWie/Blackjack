@@ -23,15 +23,40 @@
 
     const COLOURS = ['#F0435A', '#FF9A2E', '#FFCF33', '#4CC86A', '#3FA9F5', '#9B5DE5'];
     const DARK = ['#B8243A', '#D46F10', '#D9A400', '#2E9A4B', '#1C7CC4', '#6D36B8'];
-    const SHAPE = [
-        (c, d) => `<ellipse cx="20" cy="20" rx="15.5" ry="10.5" transform="rotate(-28 20 20)" fill="${c}" stroke="${d}" stroke-width="1.5"/>`,
-        (c, d) => `<rect x="9" y="9" width="22" height="22" rx="6" transform="rotate(45 20 20)" fill="${c}" stroke="${d}" stroke-width="1.5"/>`,
-        (c, d) => `<path d="M20 4.5c6 8.5 12.5 13.5 12.5 20.5a12.5 12.5 0 0 1-25 0c0-7 6.5-12 12.5-20.5z" fill="${c}" stroke="${d}" stroke-width="1.5"/>`,
-        (c, d) => `<rect x="6" y="6" width="28" height="28" rx="8" fill="${c}" stroke="${d}" stroke-width="1.5"/><rect x="12" y="12" width="16" height="16" rx="4" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="2"/>`,
-        (c, d) => `<circle cx="20" cy="20" r="14.5" fill="${c}" stroke="${d}" stroke-width="1.5"/><circle cx="20" cy="20" r="8" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2.5"/>`,
-        (c, d) => `<path d="M20 5l13 7.5v15L20 35 7 27.5v-15z" fill="${c}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/>`,
+    const LIGHT = ['#FF9AA8', '#FFC98A', '#FFF0A0', '#A6EBB4', '#A5D8FF', '#D2B4FF'];
+
+    // Each candy's outline, used both to draw it and to clip its stripes to its shape.
+    const GEOM = [
+        '<ellipse cx="20" cy="20" rx="15.5" ry="10.8" transform="rotate(-28 20 20)"/>',
+        '<rect x="9" y="9" width="22" height="22" rx="6.5" transform="rotate(45 20 20)"/>',
+        '<path d="M20 4.5c6 8.5 12.8 13.5 12.8 20.6a12.8 12.8 0 0 1-25.6 0C7.2 18 14 13 20 4.5z"/>',
+        '<rect x="6" y="6" width="28" height="28" rx="8.5"/>',
+        '<circle cx="20" cy="20" r="14.6"/>',
+        '<path d="M20 4.6l13.3 7.7v15.4L20 35.4 6.7 27.7V12.3z"/>',
     ];
-    const SHINE = '<ellipse cx="14.5" cy="13" rx="5" ry="3" transform="rotate(-30 14.5 13)" fill="#fff" opacity=".6"/>';
+
+    /** Gradients and clip shapes, defined once for every candy on the page. */
+    (function defs() {
+        const grads = COLOURS.map((c, i) => `<radialGradient id="cg${i}" cx="34%" cy="28%" r="80%"><stop offset="0" stop-color="${LIGHT[i]}"/><stop offset=".5" stop-color="${c}"/><stop offset="1" stop-color="${DARK[i]}"/></radialGradient>`
+            + `<clipPath id="cc${i}">${GEOM[i]}</clipPath>`).join('');
+        const choc = '<radialGradient id="cgb" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#9A6644"/><stop offset=".55" stop-color="#5E3B26"/><stop offset="1" stop-color="#2E1B10"/></radialGradient>';
+        const film = '<linearGradient id="cgw" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".45" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity=".3"/></linearGradient>';
+        document.body.insertAdjacentHTML('afterbegin', `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>${grads}${choc}${film}</defs></svg>`);
+    })();
+
+    const SHINE = '<ellipse cx="14" cy="12.5" rx="5.2" ry="2.8" transform="rotate(-32 14 12.5)" fill="#fff" opacity=".7"/><circle cx="26.5" cy="27" r="1.4" fill="#fff" opacity=".45"/>';
+
+    function body(i) {
+        return GEOM[i].replace('/>', ` fill="url(#cg${i})" stroke="${DARK[i]}" stroke-width="1.3"/>`);
+    }
+
+    /** Stripes cut to the candy's own shape: white bands with a soft shadow under each. */
+    function stripes(i, dir) {
+        const bands = [10, 16.5, 23, 29.5].map((p) => (dir === 'h'
+            ? `<rect x="0" y="${p}" width="40" height="3.4" fill="#fff" opacity=".95"/><rect x="0" y="${p + 3.4}" width="40" height="1.1" fill="${DARK[i]}" opacity=".35"/>`
+            : `<rect x="${p}" y="0" width="3.4" height="40" fill="#fff" opacity=".95"/><rect x="${p + 3.4}" y="0" width="1.1" height="40" fill="${DARK[i]}" opacity=".35"/>`)).join('');
+        return `<g clip-path="url(#cc${i})">${bands}</g>`;
+    }
 
     function candySvg(t) {
         if (t.kind === 'ingredient') {
@@ -40,24 +65,25 @@
                 : '<svg viewBox="0 0 40 40"><path d="M20 6c0 8-4 12-8 16M20 6c2 8 6 12 9 14" fill="none" stroke="#3C8D2F" stroke-width="2.5" stroke-linecap="round"/><path d="M20 6c4-3 9-2 11 1-4 2-8 2-11-1z" fill="#4CC86A"/><circle cx="12" cy="26" r="8" fill="#E0213F" stroke="#9C1028" stroke-width="1.5"/><circle cx="28" cy="25" r="8" fill="#E0213F" stroke="#9C1028" stroke-width="1.5"/><circle cx="9.5" cy="23.5" r="2.2" fill="#fff" opacity=".7"/><circle cx="25.5" cy="22.5" r="2.2" fill="#fff" opacity=".7"/></svg>';
         }
         if (t.special === 'bomb') {
-            const dots = [[13, 14, 0], [24, 11, 3], [28, 22, 4], [17, 26, 5], [23, 29, 2], [11, 21, 1], [20, 18, 3]]
-                .map(([x, y, k]) => `<rect x="${x}" y="${y}" width="5" height="2.4" rx="1.2" transform="rotate(${x * 7} ${x} ${y})" fill="${COLOURS[k]}"/>`).join('');
-            return `<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="#5B3A29" stroke="#3B2216" stroke-width="1.5"/>${dots}${SHINE}</svg>`;
+            const sprinkles = [[12, 13, 0, 20], [22, 9, 3, -30], [28, 17, 4, 60], [14, 24, 5, -50], [24, 28, 2, 15], [9, 19, 1, 80], [19, 18, 3, -10], [29, 25, 0, 40], [17, 31, 4, -70], [20, 12, 5, 35]]
+                .map(([x, y, k, r]) => `<rect x="${x}" y="${y}" width="5.2" height="2.2" rx="1.1" transform="rotate(${r} ${x + 2.6} ${y + 1.1})" fill="${COLOURS[k]}"/>`).join('');
+            return `<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="15.2" fill="url(#cgb)" stroke="#24150C" stroke-width="1.2"/>${sprinkles}${SHINE}</svg>`;
         }
-        const c = COLOURS[t.color], d = DARK[t.color];
-        let body = SHAPE[t.color](c, d);
+        const i = t.color;
+        let art;
         if (t.special === 'wrap') {
-            body = `<path d="M3 13l8 7-8 7zM37 13l-8 7 8 7z" fill="${c}" stroke="${d}" stroke-width="1.5" stroke-linejoin="round"/>`
-                + `<g transform="translate(20 20) scale(.78) translate(-20 -20)">${body}</g>`
-                + '<rect x="9" y="17.5" width="22" height="5" rx="2.5" fill="#fff" opacity=".8"/>';
+            // The candy sits in twisted cellophane, ends fanned out on both sides.
+            art = `<path d="M2.5 11.5 10.5 17v6l-8 5.5c-1 .6-2-.2-1.7-1.3L3.6 20 .8 12.8c-.3-1.1.7-1.9 1.7-1.3zM37.5 11.5 29.5 17v6l8 5.5c1 .6 2-.2 1.7-1.3L36.4 20l2.8-7.2c.3-1.1-.7-1.9-1.7-1.3z" fill="url(#cg${i})" stroke="${DARK[i]}" stroke-width="1.2" stroke-linejoin="round"/>`
+                + `<g transform="translate(20 20) scale(.8) translate(-20 -20)">${body(i)}</g>`
+                + '<rect x="8.5" y="8.5" width="23" height="23" rx="9" fill="url(#cgw)" stroke="#fff" stroke-opacity=".7" stroke-width="1"/>'
+                + '<path d="M12 14q4-4 9-4.5" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".85"/>';
+        } else {
+            art = body(i) + (t.special === 'h' || t.special === 'v' ? stripes(i, t.special) : '') + SHINE;
         }
-        let stripes = '';
-        if (t.special === 'h') stripes = [13, 18.5, 24].map((y) => `<rect x="8" y="${y}" width="24" height="3" rx="1.5" fill="#fff" opacity=".85"/>`).join('');
-        if (t.special === 'v') stripes = [13, 18.5, 24].map((x) => `<rect x="${x}" y="8" width="3" height="24" rx="1.5" fill="#fff" opacity=".85"/>`).join('');
         const timer = t.timer > 0
             ? `<circle cx="20" cy="20" r="9" fill="#fff" stroke="${t.timer <= 3 ? '#E5304F' : '#5B2A4E'}" stroke-width="2"/><text x="20" y="24.5" text-anchor="middle" font-size="12" font-weight="900" font-family="system-ui" fill="${t.timer <= 3 ? '#E5304F' : '#5B2A4E'}">${t.timer}</text>`
             : '';
-        return `<svg viewBox="0 0 40 40">${body}${stripes}${SHINE}${timer}</svg>`;
+        return `<svg viewBox="0 0 40 40">${art}${timer}</svg>`;
     }
 
     function blockerSvg(b) {
@@ -639,6 +665,12 @@
                 continue;
             }
             if (ev.t === 'clear') {
+                // A clear outline on every candy about to go, a beat before it pops.
+                const keep = new Set(ev.snap.cells.filter((c) => c && c.tile).map((c) => c.tile.id));
+                const doomed = [...tiles].filter(([id]) => !keep.has(id)).map(([, el]) => el);
+                doomed.forEach((el) => el.classList.add('doomed'));
+                if (doomed.length) await sleep(170);
+                if (mine !== gen) return false;
                 playFx(ev.fx);
                 if (ev.cascade >= 2) banner(CHEERS[Math.min(ev.cascade, CHEERS.length - 1)]);
                 const gained = ev.snap.score - lastScore;

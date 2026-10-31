@@ -116,6 +116,11 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 .tile svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 2px 1px rgba(0,0,0,.18)); pointer-events: none; }
 .tile.pick svg { animation: pick .6s ease-in-out infinite alternate; }
 .tile.hint svg { animation: hint .5s ease-in-out 3 alternate; }
+.tile.doomed::after {
+    content: ""; position: absolute; inset: 3%; border-radius: 30%; pointer-events: none;
+    border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(91, 42, 78, .55), 0 0 12px 2px rgba(255, 255, 255, .9);
+    animation: doomed .17s ease-out both;
+}
 .tile.pop { transition: opacity .28s ease-in .05s; opacity: 0; }
 .tile.pop svg { animation: pop-out .3s cubic-bezier(.4, 0, .7, .4) both; }
 .tile.nudge svg { animation: nudge .38s cubic-bezier(.3, 1.6, .5, 1); }
@@ -312,6 +317,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 @keyframes land { 0% { transform: scale(1.06, .82); } 55% { transform: scale(.96, 1.06); } 100% { transform: none; } }
 @keyframes crumb { from { transform: translate(0, 0) scale(1) rotate(0); opacity: .9; } to { transform: translate(var(--dx), calc(var(--dy) + 14px)) scale(.3) rotate(160deg); opacity: 0; } }
 @keyframes glow-ring { from { transform: scale(.4); opacity: .85; } to { transform: scale(1.2); opacity: 0; } }
+@keyframes doomed { from { transform: scale(1.25); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes shimmer { to { background-position: 32px 0; } }
 @keyframes card { from { transform: scale(.6) translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes star { from { transform: scale(0) rotate(-90deg); } to { transform: none; } }
