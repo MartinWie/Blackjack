@@ -26,10 +26,10 @@
     // ants must wait on a seat; `run` is how many nests of the eating order land in
     // one lane in a row. Both, with the seat count, are what makes a level hard.
     const SPECS = {
-        easy:   {lanes: 2, seats: 5, min: 6, max: 14, run: [2, 4], early: 0.12},
-        medium: {lanes: 3, seats: 4, min: 5, max: 12, run: [2, 5], early: 0.3},
-        hard:   {lanes: 3, seats: 4, min: 4, max: 10, run: [3, 6], early: 0.5},
-        expert: {lanes: 4, seats: 3, min: 3, max: 9, run: [3, 7], early: 0.6},
+        easy:   {lanes: 3, seats: 4, min: 6, max: 14, run: [2, 4], early: 0.35},
+        medium: {lanes: 3, seats: 3, min: 5, max: 13, run: [3, 5], early: 0.5},
+        hard:   {lanes: 4, seats: 3, min: 6, max: 14, run: [3, 6], early: 0.85},
+        expert: {lanes: 4, seats: 2, min: 5, max: 14, run: [4, 8], early: 0.9},
     };
 
     function hashSeed(text) {
@@ -140,7 +140,7 @@
         const ramp = Math.min(1, (index - 1) / 60);
         const max = Math.max(spec.min, Math.round(spec.max - ramp * (spec.max - spec.min) * 0.5));
         // Early nests ramp in across the band too, so its first levels ease you in.
-        const tuned = {...spec, early: spec.early * (0.4 + 0.6 * ramp)};
+        const tuned = {...spec, early: spec.early * (0.75 + 0.25 * ramp)};
         const plan = eatingOrder(board, tuned, r, max) || simpleOrder(board, spec, r, max);
         // Deal the plan into lanes in runs, never reordering it: the plan stays playable.
         const lanes = Array.from({length: spec.lanes}, () => []);
