@@ -234,9 +234,10 @@
             changed = false;
             s.seats.forEach((g, k) => {
                 if (!g) return;
-                const cells = eat(s.board, g.colour, g.left, g.dig);
+                const dig = g.dig;
+                const cells = eat(s.board, g.colour, g.left, dig);
                 g.dig = false;
-                if (cells.length) { g.left -= cells.length; changed = true; events.push({t: 'eat', seat: k, colour: g.colour, cells}); }
+                if (cells.length) { g.left -= cells.length; changed = true; events.push({t: 'eat', seat: k, colour: g.colour, cells, dig}); }
                 if (g.left <= 0 || remaining(s.board, g.colour) === 0) {
                     s.seats[k] = null;
                     events.push({t: 'leave', seat: k});

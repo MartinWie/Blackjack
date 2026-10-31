@@ -192,6 +192,8 @@
     function open(mode, level) {
         if (mode !== 'track' && !endlessOpen(mode)) { mode = 'track'; level = store.level; }
         gen++;
+        waiters.forEach((w) => w.resolve());
+        waiters = [];
         queues = [];
         placed = [];
         taken = [];
@@ -248,6 +250,7 @@
     // --- drawing ---------------------------------------------------------------------
 
     function render() {
+        if (!pending) syncShown();
         if (!pending) s.board.grid.forEach((v, i) => {
             const px = els.board.children[i];
             const colour = v >= 0 ? L.palette[v] : '';
@@ -361,21 +364,6 @@
     const centre = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
     const sleep2 = (ms) => new Promise((done) => setTimeout(done, ms));
 
-    /** Keyframes along a gentle curve, the ant turned to face where it walks. */
-    function curve(fx, fy, tx, ty, bend, size) {
-        const mx = (fx + tx) / 2 - (ty - fy) * bend, my = (fy + ty) / 2 + (tx - fx) * bend;
-        const frames = [];
-        for (let k = 0; k <= 8; k++) {
-            const t = k / 8, u = 1 - t;
-            const x = u * u * fx + 2 * u * t * mx + t * t * tx, y = u * u * fy + 2 * u * t * my + t * t * ty;
-            const dx = 2 * u * (mx - fx) + 2 * t * (tx - mx), dy = 2 * u * (my - fy) + 2 * t * (ty - my);
-            const angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
-            const bob = Math.sin(t * Math.PI * 4) * 1.5;
-            frames.push({transform: `translate(${x - size / 2}px, ${y - size / 2 + bob}px) rotate(${angle}deg)`, offset: t});
-        }
-        return frames;
-    }
-
     function walker(colour, size = 22) {
         const el = document.createElement('div');
         el.className = 'walker';
@@ -385,26 +373,123 @@
         return el;
     }
 
-    /** One ant walks out, picks up its pixel and carries it back down the hole. */
-    async function fetchBlock(seatEl, i, colour, delay, mine) {
-        await sleep2(delay);
+    // --- routes ----------------------------------------------------------------------------
+    //
+    // Ants never cross a block. `shown` is which pixels are still on screen (the engine is
+    // ahead of the screen); a route runs around the outside of the mat to an open edge,
+    // along empty cells to the cell under the pixel, and up into it from below, which is
+    // the game's own rule for what an ant can reach.
+
+    let shown = [];
+    let waiters = [];
+
+    function syncShown() {
+        shown = s.board.grid.map((v) => v >= 0);
+    }
+
+    /** Empty cells from the cell under pixel i back to the edge of the mat, or null. */
+    function routeTo(i) {
+        const y = Math.floor(i / N);
+        if (y === N - 1) return [];
+        const goal = i + N;
+        if (shown[goal]) return null;
+        const prev = new Int32Array(N * N).fill(-2);
+        prev[goal] = -1;
+        const queue = [goal];
+        const onEdge = (k) => k % N === 0 || k % N === N - 1 || k < N || k >= N * (N - 1);
+        for (let q = 0; q < queue.length; q++) {
+            const k = queue[q];
+            if (onEdge(k)) {
+                // Walk back from the edge to the goal: that is the route in.
+                const path = [];
+                for (let c = k; c !== -1; c = prev[c]) path.push(c);
+                return path;
+            }
+            const x = k % N;
+            const next = [k + N, k - 1, k + 1, k - N].filter((j) => j >= 0 && j < N * N && !(j === k - 1 && x === 0) && !(j === k + 1 && x === N - 1));
+            for (const j of next) if (prev[j] === -2 && !shown[j]) { prev[j] = k; queue.push(j); }
+        }
+        return null;
+    }
+
+    const visiblyExposed = (i) => routeTo(i) !== null;
+
+    /** Resolves once pixel i can be reached on screen (or after a safety timeout). */
+    function waitExposed(i, mine) {
+        if (visiblyExposed(i)) return Promise.resolve();
+        return new Promise((resolve) => {
+            const w = {i, resolve, mine};
+            waiters.push(w);
+            setTimeout(() => { if (waiters.includes(w)) { waiters = waiters.filter((x) => x !== w); resolve(); } }, 6000);
+        });
+    }
+
+    function grabbed(i) {
+        shown[i] = false;
+        const ready = waiters.filter((w) => w.mine !== gen || visiblyExposed(w.i));
+        waiters = waiters.filter((w) => !ready.includes(w));
+        ready.forEach((w) => w.resolve());
+    }
+
+    /** Screen points for a route: around the outside of the mat, then cell by cell. */
+    function routePoints(i, route) {
+        const r = els.board.getBoundingClientRect(), cw = r.width / N;
+        const at = (x, y) => [r.left + (x + 0.5) * cw, r.top + (y + 0.5) * cw];
+        const below = N + 0.4, side = 0.9;
+        const pts = [];
+        const entry = route.length ? route[0] : i;
+        const ex = entry % N, ey = Math.floor(entry / N);
+        // From under the mat to just outside the entry cell, never across it.
+        if (ey === N - 1 || !route.length) pts.push(at(ex, below));
+        else if (ex === 0) pts.push(at(-side, below), at(-side, ey));
+        else if (ex === N - 1) pts.push(at(N - 1 + side, below), at(N - 1 + side, ey));
+        else {
+            const left = ex < N / 2, sx = left ? -side : N - 1 + side;
+            pts.push(at(sx, below), at(sx, -side), at(ex, -side));
+        }
+        route.forEach((c) => pts.push(at(c % N, Math.floor(c / N))));
+        pts.push(at(i % N, Math.floor(i / N)));
+        return pts;
+    }
+
+    /** Keyframes along a polyline at an even walking pace, the ant facing its way. */
+    function along(pts, size) {
+        const lens = [0];
+        for (let k = 1; k < pts.length; k++) lens.push(lens[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
+        const total = lens.at(-1) || 1;
+        const frames = pts.map((p, k) => {
+            const q = pts[Math.min(k + 1, pts.length - 1)], o = pts[Math.max(k - 1, 0)];
+            const [dx, dy] = k < pts.length - 1 ? [q[0] - p[0], q[1] - p[1]] : [p[0] - o[0], p[1] - o[1]];
+            return {transform: `translate(${p[0] - size / 2}px, ${p[1] - size / 2}px) rotate(${Math.atan2(dy, dx) * 180 / Math.PI + 90}deg)`, offset: lens[k] / total};
+        });
+        return {frames, duration: Math.max(380, total / 0.32)};
+    }
+
+    /** One ant walks out along open cells, picks up its pixel and carries it home. */
+    async function fetchBlock(seatEl, i, colour, dig, mine) {
         if (mine !== gen) return;
         const px = els.board.children[i];
-        const [sx, sy] = centre(seatEl), [tx, ty] = centre(px), [hx, hy] = centre(els.hole);
+        const [sx, sy] = centre(seatEl), [hx, hy] = centre(els.hole);
+        const route = dig ? null : routeTo(i);
+        // A digger tunnels straight to its block; everyone else keeps to open ground.
+        const out = route ? [[sx, sy], ...routePoints(i, route)] : [[sx, sy], centre(px)];
         const ant = walker(colour);
+        ant.dataset.target = i;
         ant.insertAdjacentHTML('beforeend', `<i class="block" style="background:${colour}"></i>`);
-        const bend = (Math.random() - 0.5) * 0.6;
-        await ant.animate(curve(sx, sy, tx, ty, bend, 22), {duration: 560, easing: 'cubic-bezier(.45, .05, .55, .95)', fill: 'forwards'}).finished;
+        const go = along(out, 22);
+        await ant.animate(go.frames, {duration: go.duration, easing: 'linear', fill: 'forwards'}).finished;
         if (mine !== gen) { ant.remove(); return; }
         // Grab: the pixel leaves the picture and rides on the ant's back.
         ant.classList.add('carrying');
+        grabbed(i);
         px.animate([{transform: 'scale(1)'}, {transform: 'scale(1.2)', offset: .4}, {transform: 'scale(0)', opacity: 0}], {duration: 160, easing: 'ease-in', fill: 'forwards'})
             .finished.then(() => { px.classList.add('gone'); px.getAnimations().forEach((x) => x.cancel()); });
         await sleep2(110);
-        const home = ant.animate(curve(tx, ty, hx, hy, -bend, 22), {duration: 560, easing: 'cubic-bezier(.45, .05, .55, .95)', fill: 'forwards'});
-        await home.finished;
+        const home = along([...out.slice(1).reverse(), [hx, hy]], 22);
+        const back = ant.animate(home.frames, {duration: home.duration, easing: 'linear', fill: 'forwards'});
+        await back.finished;
         // Down the hole it goes, block and all.
-        const last = home.effect.getKeyframes().at(-1).transform;
+        const last = back.effect.getKeyframes().at(-1).transform;
         await ant.animate([{transform: last, opacity: 1}, {transform: `${last} scale(.2)`, opacity: 0}], {duration: 200, easing: 'ease-in', fill: 'forwards'}).finished;
         ant.remove();
         els.hole.animate([{transform: 'translateX(-50%) scale(1)'}, {transform: 'translateX(-50%) scale(1.12, .9)'}, {transform: 'translateX(-50%) scale(1)'}], {duration: 200});
@@ -436,17 +521,19 @@
             if (g) g.animate([{transform: 'scale(.92)'}, {transform: 'scale(1.06)', offset: .55}, {transform: 'scale(1)'}], {duration: 260, easing: 'ease-out'});
         } else if (ev.t === 'eat') {
             const count = seat.querySelector('.group b');
-            const step = Math.max(70, Math.min(140, 1400 / ev.cells.length));
-            ev.cells.forEach((i, k) => {
-                setTimeout(() => {
-                    if (mine !== gen || !view.seats[ev.seat]) return;
+            const step = Math.max(70, Math.min(130, 1300 / ev.cells.length));
+            // One ant at a time, each only once its block is exposed on screen; the
+            // jar can go as soon as the last has set off, while ants walk home.
+            for (const i of ev.cells) {
+                if (!ev.dig) await waitExposed(i, mine);
+                if (mine !== gen) return;
+                if (view.seats[ev.seat]) {
                     view.seats[ev.seat].left--;
                     if (count) count.textContent = Math.max(0, view.seats[ev.seat].left);
-                }, k * step);
-                fetchBlock(seat, i, L.palette[ev.colour], k * step, mine);
-            });
-            // Done once the last ant has set off: the jar can go while ants walk home.
-            await sleep2((ev.cells.length - 1) * step + 120);
+                }
+                fetchBlock(seat, i, L.palette[ev.colour], !!ev.dig, mine);
+                await sleep2(step);
+            }
         } else if (ev.t === 'leave') {
             const g = seat.querySelector('.group');
             if (g) {
