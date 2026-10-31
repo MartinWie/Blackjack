@@ -508,7 +508,10 @@
         if (s.over && action.t === 'tap') return;
         if (action.t === 'tap') {
             const t = els.lanes.children[action.lane] && els.lanes.children[action.lane].querySelector('.token.front');
-            const events = E.tap(s, action.lane);
+            // A slot counts as taken until its jar has left the screen, not just until
+            // the engine is done with it: otherwise a tile would land on a jar still there.
+            const visiblyFull = s.seats.every((_, v) => taken[v]);
+            const events = visiblyFull ? null : E.tap(s, action.lane);
             if (!events) {
                 // Every seat taken: the seats shuffle to say so.
                 els.seats.animate([{transform: 'none'}, {transform: 'translateX(-6px)'}, {transform: 'translateX(6px)'}, {transform: 'none'}], {duration: 300});
