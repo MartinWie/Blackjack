@@ -73,7 +73,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 
 /* --- hud ------------------------------------------------------------------ */
 
-.hud { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+.hud { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; }
+.hud .lvl { text-align: left; }
 .round {
     width: 40px; height: 40px; border-radius: 50%; background: var(--paper); box-shadow: var(--shadow);
     font-size: 22px; font-weight: 900; color: var(--ink-soft);
@@ -222,8 +223,21 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 .booster[aria-pressed="true"] { background: #FFE0F0; box-shadow: 0 0 0 3px var(--pink), var(--shadow); animation: armed 1.2s ease-in-out infinite; }
 .booster.bump b { animation: bump .5s cubic-bezier(.3, 1.8, .5, 1); }
 
-.sheet-card { position: relative; max-height: 82dvh; overflow: auto; text-align: left; }
-.sheet-card h2 { text-align: center; }
+.sheet { position: fixed; inset: 0; z-index: 20; display: grid; align-items: end; justify-items: center; background: rgba(91, 42, 78, .35); animation: veil-in .3s ease-out both; }
+.sheet[hidden] { display: none; }
+.sheet.closing { animation: veil-out .28s ease-in both; }
+.sheet-card {
+    position: relative; width: min(520px, 100%); max-height: 82dvh; overflow: auto; text-align: left;
+    padding: 22px 18px max(22px, env(safe-area-inset-bottom)); border-radius: 26px 26px 0 0;
+    background: linear-gradient(#fff, #FFF0F8); box-shadow: 0 -10px 40px rgba(91, 42, 78, .3);
+    animation: slide-up .42s cubic-bezier(.2, .9, .3, 1.05) both;
+}
+.sheet.closing .sheet-card { animation: slide-down .28s cubic-bezier(.5, 0, .9, .5) both; }
+.sheet-card h2 { margin: 0 0 8px; font-size: 26px; font-weight: 900; color: var(--pink); }
+#map.slide-in { animation: slide-up .45s cubic-bezier(.2, .9, .3, 1.05) both; }
+/* the tile's own transform places it, so the flip turns its artwork instead */
+.tile.flip-out svg { animation: tile-flip-out .26s ease-in var(--flip, 0s) both; }
+.tile.flip-in svg { animation: tile-flip-in .3s ease-out var(--flip, 0s) both; }
 .sheet-card h3 { margin: 16px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-soft); }
 .sheet-card li, .sheet-card p { font-size: 14px; font-weight: 700; line-height: 1.4; color: var(--ink); }
 .sheet-card ul { margin: 4px 0; padding-left: 18px; }
@@ -231,6 +245,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 .list { display: grid; gap: 8px; }
 .list div { display: flex; align-items: center; gap: 10px; }
 .list svg { width: 34px; height: 34px; flex: none; }
+.list p { margin: 0; }
 
 /* --- overlay -------------------------------------------------------------- */
 
@@ -287,6 +302,12 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 @keyframes bolt { 0% { opacity: 0; clip-path: inset(0 100% 0 0); } 35% { opacity: 1; clip-path: inset(0 0 0 0); } 100% { opacity: 0; clip-path: inset(0 0 0 0); } }
 @keyframes comic { 0% { transform: scale(0) rotate(-30deg); opacity: 0; } 25% { transform: scale(1.25) rotate(6deg); opacity: 1; } 40% { transform: scale(1) rotate(0); } 80% { transform: scale(1); opacity: 1; } 100% { transform: scale(.85) translateY(-30px); opacity: 0; } }
 @keyframes plus-five { from { transform: translate(-50%, -50%) scale(0) rotate(-25deg); } to { transform: translate(-50%, -50%) scale(1) rotate(0); } }
+@keyframes slide-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes slide-down { from { transform: none; } to { transform: translateY(100%); } }
+@keyframes veil-in { from { background: rgba(91, 42, 78, 0); } to { background: rgba(91, 42, 78, .35); } }
+@keyframes veil-out { from { background: rgba(91, 42, 78, .35); } to { background: rgba(91, 42, 78, 0); } }
+@keyframes tile-flip-out { from { transform: perspective(300px) rotateY(0); } to { transform: perspective(300px) rotateY(90deg) scale(.85); } }
+@keyframes tile-flip-in { from { transform: perspective(300px) rotateY(-90deg) scale(.85); } to { transform: perspective(300px) rotateY(0); } }
 @keyframes shimmer { to { background-position: 32px 0; } }
 @keyframes card { from { transform: scale(.6) translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes star { from { transform: scale(0) rotate(-90deg); } to { transform: none; } }

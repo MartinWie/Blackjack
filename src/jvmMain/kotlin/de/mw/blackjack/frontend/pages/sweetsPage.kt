@@ -6,8 +6,6 @@ import kotlinx.html.stream.appendHTML
 
 private const val ICON_LEVELS =
     """<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/></svg>"""
-private const val ICON_HINT =
-    """<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17h6M10 20.5h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V17h5.2v-1.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>"""
 private const val ICON_RESTART =
     """<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>"""
 private const val ICON_HELP =
@@ -55,7 +53,6 @@ fun sweetsPage(): String = buildString {
                 id = "play"
                 hidden = true
                 div(classes = "hud") {
-                    button(classes = "round") { id = "to-map"; attributes["aria-label"] = "Back to the map"; +"‹" }
                     div(classes = "lvl") {
                         small { id = "type-label" }
                         strong { id = "lvl-num" }
@@ -84,7 +81,6 @@ fun sweetsPage(): String = buildString {
                 }
                 div(classes = "toolbar") {
                     toolButton("map-btn", "Map", ICON_LEVELS)
-                    toolButton("hint-btn", "Hint", ICON_HINT)
                     toolButton("restart-btn", "Restart", ICON_RESTART)
                     toolButton("help-btn", "Rules", ICON_HELP)
                 }
@@ -102,10 +98,10 @@ fun sweetsPage(): String = buildString {
                     div(classes = "actions") { id = "ov-actions" }
                 }
             }
-            div(classes = "overlay") {
+            div(classes = "sheet") {
                 id = "sheet"
                 hidden = true
-                div(classes = "card sheet-card") {
+                div(classes = "sheet-card") {
                     button(classes = "sheet-close") { id = "sheet-close"; attributes["aria-label"] = "Close"; +"×" }
                     div { id = "sheet-body" }
                 }

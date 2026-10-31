@@ -106,12 +106,12 @@
 
     const $ = (id) => document.getElementById(id);
     const els = {
-        map: $('map'), play: $('play'), levels: $('levels'), toMap: $('to-map'),
+        map: $('map'), play: $('play'), levels: $('levels'),
         typeLabel: $('type-label'), lvlNum: $('lvl-num'), counter: $('counter'), counterLabel: $('counter-label'), counterBox: $('counter-box'),
         scoreFill: $('score-fill'), score: $('score'), stars: [...document.querySelectorAll('.scorebar .star')],
         goals: $('goals'), wrap: $('boardwrap'), board: $('board'), fx: $('fx'), banner: $('banner'),
         sugarFill: $('sugar-fill'), sugarMeter: $('sugar-meter'), boosters: $('boosters'), tip: $('tip'),
-        mapBtn: $('map-btn'), hintBtn: $('hint-btn'), restartBtn: $('restart-btn'), helpBtn: $('help-btn'),
+        mapBtn: $('map-btn'), restartBtn: $('restart-btn'), helpBtn: $('help-btn'),
         sheet: $('sheet'), sheetBody: $('sheet-body'), sheetClose: $('sheet-close'),
         overlay: $('overlay'), ovTitle: $('ov-title'), ovStars: $('ov-stars'), ovText: $('ov-text'), ovGoals: $('ov-goals'), ovActions: $('ov-actions'),
     };
@@ -138,8 +138,15 @@
         setBusy(false);
         stopClock();
         clearTimeout(hintTimer);
+        const fromPlay = !els.play.hidden;
         els.play.hidden = true;
         els.map.hidden = false;
+        // Coming from a level, the map slides up from the bottom.
+        if (fromPlay) {
+            els.map.classList.remove('slide-in');
+            void els.map.offsetWidth;
+            els.map.classList.add('slide-in');
+        }
         const last = store.unlocked + 9;
         els.levels.innerHTML = '';
         for (let n = last; n >= 1; n--) {
@@ -180,11 +187,12 @@
     const tiles = new Map();
     const bgs = [], decos = [];
 
-    function openLevel(n) {
+    /** Opens level n; `flipIn` (a restart) flips the fresh candies in instead of popping them. */
+    function openLevel(n, flipIn = false) {
         els.map.hidden = true;
         els.play.hidden = false;
         els.overlay.hidden = true;
-        els.board.innerHTML = '<p class="tip" style="padding-top:40%">Baking the level…</p>';
+        if (!flipIn) els.board.innerHTML = '<p class="tip" style="padding-top:40%">Baking the level…</p>';
         els.goals.innerHTML = '';
         // Let the page paint first; the bot calibrating a new level takes a moment.
         gen++;
@@ -199,6 +207,14 @@
             rolled = false;
             buildBoard();
             render(E.snapshot(state), {instant: true});
+            if (flipIn) {
+                tiles.forEach((el) => {
+                    const m = el.style.transform.match(/-?[\d.]+/g);
+                    el.style.setProperty('--flip', `${(Math.round(Number(m[0]) / cell) + Math.round(Number(m[1]) / cell)) * 28}ms`);
+                    el.classList.add('flip-in');
+                    setTimeout(() => el.classList.remove('flip-in'), 320 + (L.w + L.h) * 28);
+                });
+            }
             els.typeLabel.textContent = TYPE_LABEL[L.type];
             els.lvlNum.textContent = `Level ${n}`;
             els.counterLabel.textContent = L.type === 'timed' ? 'Time' : 'Moves';
@@ -847,28 +863,42 @@
 
     // --- sheets -----------------------------------------------------------------
 
+    function closeSheet() {
+        if (els.sheet.hidden || els.sheet.classList.contains('closing')) return;
+        els.sheet.classList.add('closing');
+        setTimeout(() => { els.sheet.hidden = true; els.sheet.classList.remove('closing'); }, 280);
+    }
+
+    /** Every candy flips over in a diagonal wave, then the level starts again. */
+    async function flipRestart() {
+        if (!L || busy) return;
+        setBusy(true);
+        const mine = gen;
+        const tilesNow = [...tiles.values()];
+        tilesNow.forEach((el) => {
+            const m = el.style.transform.match(/-?[\d.]+/g);
+            const col = m ? Math.round(Number(m[0]) / cell) : 0, row = m ? Math.round(Number(m[1]) / cell) : 0;
+            el.style.setProperty('--flip', `${(row + col) * 28}ms`);
+            el.classList.add('flip-out');
+        });
+        await sleep(260 + (L.w + L.h) * 28);
+        if (mine !== gen) return;
+        setBusy(false);
+        openLevel(L.n, true);
+    }
+
     function showRules() {
-        const boosters = BOOSTER_KEYS.map((k) => `<div>${boosterIcon(k)}<p><b>${BOOSTERS[k].name}.</b> ${BOOSTERS[k].what}</p></div>`).join('');
+        const boosters = BOOSTER_KEYS.map((k) => `<div>${boosterIcon(k)}<p><b>${BOOSTERS[k].name}:</b> ${BOOSTERS[k].what}</p></div>`).join('');
         const specials = [
-            [candySvg({kind: 'candy', color: 4, special: 'h'}), 'Four in a row makes a striped candy. It clears its row or column.'],
-            [candySvg({kind: 'candy', color: 5, special: 'wrap'}), 'An L or T makes a wrapped candy. It blasts the eight around it.'],
-            [candySvg({kind: 'candy', special: 'bomb'}), 'Five in a row makes a colour bomb. Swap it with a candy to clear that colour.'],
+            [candySvg({kind: 'candy', color: 4, special: 'h'}), '4 in a row: striped, clears a line'],
+            [candySvg({kind: 'candy', color: 5, special: 'wrap'}), 'L or T: wrapped, blasts around it'],
+            [candySvg({kind: 'candy', special: 'bomb'}), '5 in a row: colour bomb, clears a colour'],
         ].map(([icon, text]) => `<div>${icon}<p>${text}</p></div>`).join('');
         els.sheetBody.innerHTML = `<h2>How to play</h2>
-            <p>Swap two neighbouring candies to line up three or more of one kind.</p>
-            <h3>Special candies</h3><div class="list">${specials}</div>
-            <p>Swap two specials together for a bigger blast.</p>
-            <h3>Level types</h3>
-            <ul>
-                <li><b>Score</b> and <b>timed</b>: reach the target score.</li>
-                <li><b>Jelly</b>: match on every pink tile, twice on the dark ones.</li>
-                <li><b>Drop</b>: bring the cherries and nuts down to the green arrows.</li>
-                <li><b>Order</b>: collect the candies and specials shown.</li>
-                <li><b>Break</b>: clear all frosting and chocolate. Chocolate spreads if you leave it alone.</li>
-            </ul>
-            <p>Licorice locks a candy until you match it. Candy bombs count down; clear them before they hit zero. Big cascades fill the Sugar Rush meter, which hands out a free special.</p>
-            <h3>Boosters</h3><div class="list">${boosters}</div>
-            <p>After every game, won or lost, there is a one-in-seven chance of a gift with a new booster inside.</p>`;
+            <p>Swap neighbours to match three or more. Swap two specials for a bigger blast.</p>
+            <div class="list">${specials}</div>
+            <h3>Boosters</h3><div class="list">${boosters}</div>`;
+        els.sheet.classList.remove('closing');
         els.sheet.hidden = false;
     }
 
@@ -957,13 +987,11 @@
         const b = e.target.closest('[data-booster]');
         if (b && !b.disabled) useBooster(b.dataset.booster);
     });
-    els.toMap.addEventListener('click', showMap);
     els.mapBtn.addEventListener('click', showMap);
-    els.hintBtn.addEventListener('click', showHint);
-    els.restartBtn.addEventListener('click', () => { if (L && !busy) openLevel(L.n); });
+    els.restartBtn.addEventListener('click', flipRestart);
     els.helpBtn.addEventListener('click', showRules);
-    els.sheetClose.addEventListener('click', () => { els.sheet.hidden = true; });
-    els.sheet.addEventListener('click', (e) => { if (e.target === els.sheet) els.sheet.hidden = true; });
+    els.sheetClose.addEventListener('click', closeSheet);
+    els.sheet.addEventListener('click', (e) => { if (e.target === els.sheet) closeSheet(); });
 
     showMap();
 })();
