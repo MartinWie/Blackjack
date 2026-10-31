@@ -2,8 +2,8 @@
 
 Casino-style blackjack prototype. Quick rounds on a phone, solo or in a shared room.
 The same server also hosts a launcher (`/`, `/games`), Marbles (`/marbles`, package
-`de.mw.marbles`), Hide & Meow (`/meow`, `static/meow/`) and Sweet Swap (`/sweets`,
-`static/sweets/`). Read `README.md`
+`de.mw.marbles`), Hide & Meow (`/meow`, `static/meow/`), Sweet Swap (`/sweets`,
+`static/sweets/`) and Ant Picnic (`/picnic`, `static/picnic/`). Read `README.md`
 first; it covers the stack, the rules and the trade-offs. This file is what a change
 needs to know.
 
@@ -71,6 +71,7 @@ needs to know.
 npm run check:solo   # the offline path: real bundle + real bank.js, 25 rounds in Node
 npm run check:meow   # Hide & Meow boards: unique, solvable without guessing, seeded
 npm run check:sweets # Sweet Swap levels: bot-calibrated budgets, won from the player seed
+npm run check:picnic # Ant Picnic levels: each winnable by the order it was built from
 bash start.sh        # Tailwind, engine bundle, jar, run
 ```
 

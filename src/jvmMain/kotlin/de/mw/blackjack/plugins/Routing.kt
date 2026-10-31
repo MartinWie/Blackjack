@@ -3,6 +3,7 @@ package de.mw.blackjack.plugins
 import de.mw.blackjack.frontend.pages.hubPage
 import de.mw.blackjack.frontend.pages.lobbyPage
 import de.mw.blackjack.frontend.pages.meowPage
+import de.mw.blackjack.frontend.pages.picnicPage
 import de.mw.blackjack.frontend.pages.sweetsPage
 import de.mw.blackjack.frontend.pages.offlinePage
 import de.mw.blackjack.frontend.pages.tablePage
@@ -108,6 +109,7 @@ fun Application.configureRouting() {
                 "blackjack" -> call.respondText(lobbyPage(call.player().name), ContentType.Text.Html)
                 "meow" -> call.respondText(meowPage(), ContentType.Text.Html)
                 "sweets" -> call.respondText(sweetsPage(), ContentType.Text.Html)
+                "picnic" -> call.respondText(picnicPage(), ContentType.Text.Html)
                 "marbles" -> call.respondRedirect("/marbles")
                 else -> call.respondText(hubPage(), ContentType.Text.Html)
             }
@@ -118,6 +120,8 @@ fun Application.configureRouting() {
         get("/meow") { call.respondText(meowPage(), ContentType.Text.Html) }
 
         get("/sweets") { call.respondText(sweetsPage(), ContentType.Text.Html) }
+
+        get("/picnic") { call.respondText(picnicPage(), ContentType.Text.Html) }
 
         get("/blackjack") {
             val player = call.player()

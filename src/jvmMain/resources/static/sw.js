@@ -5,13 +5,14 @@
  * start on a bad connection is instant and a dropped one lands on /offline instead
  * of the browser's error page.
  */
-const VERSION = 'bj-v7';
+const VERSION = 'bj-v8';
 const SHELL = [
     '/',
     '/blackjack',
     '/games',
     '/meow',
     '/sweets',
+    '/picnic',
     '/offline',
     '/solo',
     '/static/hub.js',
@@ -24,6 +25,10 @@ const SHELL = [
     '/static/sweets/sweets-engine.js',
     '/static/sweets/sweets.js',
     '/static/sweets/sweets.css',
+    '/static/picnic/picnic-pics.js',
+    '/static/picnic/picnic-engine.js',
+    '/static/picnic/picnic.js',
+    '/static/picnic/picnic.css',
     '/static/vendor/engine.js',
     '/static/output.css',
     '/static/vendor/anime.umd.min.js',
@@ -39,6 +44,7 @@ const SHELL = [
     '/static/img/games/hub-512.png',
     '/static/img/games/meow-192.png',
     '/static/img/games/sweets-192.png',
+    '/static/img/games/picnic-192.png',
     '/static/img/games/marbles-192.png',
     '/static/manifest.webmanifest',
 ];

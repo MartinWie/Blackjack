@@ -43,7 +43,6 @@ fun sweetsPage(): String = buildString {
             section(classes = "screen") {
                 id = "map"
                 div(classes = "map-top") {
-                    a(href = "/games", classes = "back") { +"‹ Games" }
                     h1(classes = "logo") { +"Sweet"; span { +"Swap" } }
                 }
                 p(classes = "intro") { +"Swap neighbours to match three or more. Every level here has been beaten by our candy bot." }

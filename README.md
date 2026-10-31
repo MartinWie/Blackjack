@@ -11,6 +11,7 @@ The same server hosts two more games behind a launcher at `/`:
 | `/blackjack` | Blackjack lobby; `/solo` and `/t/{code}` as before | solo offline |
 | `/meow` | Hide & Meow, a cat-finding logic puzzle | offline |
 | `/sweets` | Sweet Swap, a match-3 with six level types | offline |
+| `/picnic` | Ant Picnic, ants eating pixel-art food | offline |
 | `/marbles` | Marbles, realtime multiplayer odd/even (ported from `MarbleGame`) | online |
 
 `/` follows the subdomain: `blackjack.*` opens the lobby, `meow.*` and `sweets.*` their game,
@@ -23,6 +24,7 @@ bash stop.sh
 npm run check:solo         # plays 25 offline rounds through the real bundle, in Node
 npm run check:meow         # every difficulty's first 30 boards: unique, solvable, seeded
 npm run check:sweets       # Sweet Swap levels: budgets the bot met, won from the player's seed
+npm run check:picnic       # Ant Picnic levels: winnable by their own eating order, seeded
 ```
 
 Phone: `http://<your-mac-ip>:8090` on the same wifi — `start.sh` prints the address.
@@ -141,6 +143,22 @@ never give a unique board, and capped at 26% of the board so no colour swallows 
 After 3000 tries a board that is merely solvable is accepted, so no seed can hang the
 page. Progress is the level reached, one board in progress and the power-up pouch.
 
+## Ant Picnic
+
+Sixteen pixel-art foods (`picnic-pics.js`, drawn from a few shapes) on a plate. Nests
+wait in lanes; tapping a lane's front nest sends that many ants of its colour to a
+seat. Ants climb up from the blanket, so they only reach a pixel with nothing below it
+and eat upward; ants that cannot reach anything wait on their seat. Every seat full and
+nobody able to eat: the level is lost.
+
+A level is a seed. `eatingOrder` plays the board while it builds it, sending some
+nests before their colour is reachable (`early`) but always keeping a seat free, and
+the nests are dealt into lanes in runs without reordering. Following that order always
+wins, so every level can be won; `npm run check:picnic` replays them. Same track as
+Hide & Meow (100 levels a difficulty, endless modes after each band), the same gift
+drops, and four power-ups: Extra seat, Digger, Recall, Feast. Progress keeps the board
+in progress as its list of actions and replays it.
+
 ## Sweet Swap
 
 A match-3: four in a row makes a striped candy, an L or T a wrapped one, five a colour
@@ -239,7 +257,8 @@ jvmMain/      the server
   resources/static/marbles/  its own stylesheet and scripts
   resources/static/meow/     Hide & Meow: meow-engine.js (rules, levels), meow-cats.js, meow.js
   resources/static/sweets/   Sweet Swap: sweets-engine.js (rules, levels, bot), sweets.js
-  resources/static/gift.js   the power-up gift both offline games share
+  resources/static/picnic/   Ant Picnic: picnic-pics.js, picnic-engine.js, picnic.js
+  resources/static/gift.js   the power-up gift the offline games share
 jsMain/       SoloTable.kt — the browser's handle on a Room; becomes vendor/engine.js
 tools/        solo-session.mjs — plays the offline path headlessly in Node
               meow-check.mjs — generates and verifies Hide & Meow boards

@@ -34,15 +34,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 
 /* --- map ------------------------------------------------------------------ */
 
-.map-top { display: flex; align-items: center; justify-content: space-between; }
+.map-top { display: flex; align-items: center; justify-content: center; }
 
-.back {
-    display: inline-flex; align-items: center; padding: 8px 14px; border-radius: 999px;
-    background: var(--paper); box-shadow: var(--shadow); color: var(--ink-soft);
-    text-decoration: none; font-size: 14px; font-weight: 800;
-}
-
-.logo { margin: 0; font-size: 34px; font-weight: 900; line-height: .9; letter-spacing: -1px; text-align: right; }
+.logo { margin: 0; font-size: 34px; font-weight: 900; line-height: .9; letter-spacing: -1px; text-align: center; }
 .logo span { display: block; color: var(--pink); text-shadow: 0 3px 0 #FFD2EA; }
 
 .intro { margin: 4px 0 0; color: var(--ink-soft); font-size: 14px; font-weight: 700; text-align: center; }
