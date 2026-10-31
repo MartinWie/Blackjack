@@ -423,7 +423,7 @@
 
     window.addEventListener('pageshow', (event) => {
         if (!event.persisted || local) return;
-        post('/join').then((result) => (result === null ? (location.href = '/') : connect()));
+        post('/join').then((result) => (result === null ? (location.href = '/blackjack') : connect()));
     });
 
     // ---- keeping the felt current -------------------------------------------
@@ -443,7 +443,7 @@
             probing = true;
             fetch('/api/rooms/' + code + '/state')
                 .then((res) => {
-                    if (res.status === 404) location.href = '/';
+                    if (res.status === 404) location.href = '/blackjack';
                 })
                 .catch(() => {
                     /* offline — EventSource keeps trying. */
@@ -480,7 +480,7 @@
     } else {
         post('/join').then((result) => {
             if (result === null) {
-                location.href = '/';
+                location.href = '/blackjack';
                 return;
             }
             connect();

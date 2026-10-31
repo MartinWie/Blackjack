@@ -1,6 +1,8 @@
 package de.mw.blackjack.plugins
 
+import de.mw.blackjack.frontend.pages.hubPage
 import de.mw.blackjack.frontend.pages.lobbyPage
+import de.mw.blackjack.frontend.pages.meowPage
 import de.mw.blackjack.frontend.pages.offlinePage
 import de.mw.blackjack.frontend.pages.tablePage
 import de.mw.blackjack.game.Action
@@ -9,6 +11,7 @@ import de.mw.blackjack.game.RoomRegistry
 import de.mw.blackjack.models.Names
 import de.mw.blackjack.models.TableState
 import de.mw.blackjack.realtime.RoomEvents
+import de.mw.marbles.marblesGameCount
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.http.content.*
@@ -55,6 +58,8 @@ private fun ApplicationCall.player(): PlayerSession =
 
 fun Application.configureRouting() {
     install(Compression) { gzip() }
+    // `/marbles` and `/marbles/` are the same page.
+    install(IgnoreTrailingSlash)
 
     install(StatusPages) {
         exception<Throwable> { call, cause ->
@@ -66,7 +71,10 @@ fun Application.configureRouting() {
             // so redirecting unconditionally turned every API 404 into a 302 to the
             // lobby — and the client's "is this table gone?" check followed it and
             // read 200.
-            if (!call.request.local.uri.startsWith("/api/")) call.respondRedirect("/")
+            // Marbles answers its own 404s (a gone game has a page of its own).
+            val uri = call.request.local.uri
+            val marbles = uri == "/marbles" || uri.startsWith("/marbles/") || uri.startsWith("/marbles?")
+            if (!uri.startsWith("/api/") && !marbles) call.respondRedirect("/")
         }
     }
 
@@ -85,11 +93,29 @@ fun Application.configureRouting() {
                 "rooms ${RoomRegistry.count()}\n" +
                     "streams ${RoomEvents.streamCount()}\n" +
                     "stream_rooms ${RoomEvents.codes().size}\n" +
+                    "marbles_games ${marblesGameCount()}\n" +
                     "heap_mb $heapMb\n",
             )
         }
 
+        // The launcher and both offline games are static, so the service worker can
+        // serve them with no network at all.
+        // A game's own subdomain (blackjack.7mw.de, …) opens that game; any other
+        // host gets the launcher.
         get("/") {
+            when (call.request.host().substringBefore('.')) {
+                "blackjack" -> call.respondText(lobbyPage(call.player().name), ContentType.Text.Html)
+                "meow" -> call.respondText(meowPage(), ContentType.Text.Html)
+                "marbles" -> call.respondRedirect("/marbles")
+                else -> call.respondText(hubPage(), ContentType.Text.Html)
+            }
+        }
+
+        get("/games") { call.respondText(hubPage(), ContentType.Text.Html) }
+
+        get("/meow") { call.respondText(meowPage(), ContentType.Text.Html) }
+
+        get("/blackjack") {
             val player = call.player()
             call.respondText(lobbyPage(player.name), ContentType.Text.Html)
         }
@@ -115,7 +141,7 @@ fun Application.configureRouting() {
 
         get("/t/{code}") {
             val code = call.parameters["code"]?.uppercase().orEmpty()
-            if (RoomRegistry.get(code) == null) return@get call.respondRedirect("/")
+            if (RoomRegistry.get(code) == null) return@get call.respondRedirect("/blackjack")
             call.player()
             call.respondText(tablePage(code), ContentType.Text.Html)
         }

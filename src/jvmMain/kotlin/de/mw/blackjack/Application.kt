@@ -3,6 +3,7 @@ package de.mw.blackjack
 import de.mw.blackjack.game.RoomRegistry
 import de.mw.blackjack.plugins.configureRouting
 import de.mw.blackjack.plugins.configureSessions
+import de.mw.marbles.configureMarbles
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -38,5 +39,6 @@ fun Application.module() {
     }
     configureSessions()
     configureRouting()
+    configureMarbles()
     RoomRegistry.start()
 }

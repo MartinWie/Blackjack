@@ -3,7 +3,8 @@ module.exports = {
     // Our sources only: `static/vendor/` holds anime.js and the compiled engine, and
     // scanning 300 kB of minified bundle for class names finds nothing but costs a
     // second of every build.
-    content: ["./src/jvmMain/kotlin/**/*.kt", "./src/jvmMain/resources/static/*.js"],
+    // Marbles and Hide & Meow carry their own stylesheets and are left out too.
+    content: ["./src/jvmMain/kotlin/de/mw/blackjack/**/*.kt", "./src/jvmMain/resources/static/*.js"],
     theme: {
         extend: {
             colors: {

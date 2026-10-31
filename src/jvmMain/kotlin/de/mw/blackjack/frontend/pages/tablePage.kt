@@ -24,7 +24,7 @@ fun tablePage(code: String, local: Boolean = false): String = page(
         attributes["data-mode"] = if (local) "local" else "online"
 
         header(classes = "flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2") {
-            a(href = "/", classes = "rounded-pill bg-black/30 px-3 py-2 text-sm text-chalk/70") { +"Leave" }
+            a(href = "/blackjack", classes = "rounded-pill bg-black/30 px-3 py-2 text-sm text-chalk/70") { +"Leave" }
             button(classes = "rounded-pill bg-black/30 px-4 py-2 text-center") {
                 id = "share"
                 span(classes = "block text-[10px] uppercase tracking-widest text-chalk/50") {

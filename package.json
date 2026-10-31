@@ -5,6 +5,7 @@
   },
   "scripts": {
     "css": "tailwindcss -i ./src/jvmMain/resources/static/input.css -o ./src/jvmMain/resources/static/output.css --minify",
-    "check:solo": "node tools/solo-session.mjs"
+    "check:solo": "node tools/solo-session.mjs",
+    "check:meow": "node tools/meow-check.mjs"
   }
 }

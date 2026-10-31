@@ -79,6 +79,8 @@ fun lobbyPage(playerName: String): String = page(
                 +"min ${Rules.MIN_BET} · max ${Rules.MAX_BET} · double and split allowed"
             }
             button(classes = "text-chalk/40 underline") { id = "reset"; +"Reset bankroll to ${Rules.STARTING_CASH}" }
+            // On blackjack.7mw.de "/" is this lobby, so the launcher is linked by name.
+            a(href = "/games", classes = "block text-chalk/40 underline") { +"More games" }
         }
     }
 }

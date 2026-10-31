@@ -1,6 +1,6 @@
 {
-  "name": "Blackjack",
-  "short_name": "21",
+  "name": "Games",
+  "short_name": "Games",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

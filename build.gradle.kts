@@ -55,6 +55,8 @@ kotlin {
                 implementation("io.ktor:ktor-server-netty-jvm:$ktor_version")
                 implementation("io.ktor:ktor-server-html-builder-jvm:$ktor_version")
                 implementation("org.jetbrains.kotlinx:kotlinx-html-jvm:0.11.0")
+                implementation("io.ktor:ktor-server-websockets-jvm:$ktor_version")
+                implementation("io.github.g0dkar:qrcode-kotlin:4.1.1")
                 implementation("io.ktor:ktor-server-content-negotiation-jvm:$ktor_version")
                 implementation("io.ktor:ktor-serialization-kotlinx-json-jvm:$ktor_version")
                 implementation("io.ktor:ktor-server-sessions:$ktor_version")
@@ -68,6 +70,8 @@ kotlin {
             dependencies {
                 implementation(kotlin("test-junit5"))
                 implementation("io.ktor:ktor-server-test-host-jvm:$ktor_version")
+                implementation("io.ktor:ktor-client-websockets-jvm:$ktor_version")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
             }
         }
     }

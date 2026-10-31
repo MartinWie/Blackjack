@@ -1,8 +1,10 @@
 # Blackjack — project notes
 
 Casino-style blackjack prototype. Quick rounds on a phone, solo or in a shared room.
-Read `README.md` first; it covers the stack, the rules and the trade-offs. This file
-is what a change needs to know.
+The same server also hosts a launcher (`/`, `/games`), Marbles (`/marbles`, package
+`de.mw.marbles`) and Hide & Meow (`/meow`, all in `static/meow/`). Read `README.md`
+first; it covers the stack, the rules and the trade-offs. This file is what a change
+needs to know.
 
 ## Ground rules
 
@@ -27,6 +29,15 @@ is what a change needs to know.
   `static/sw.js`. A new page that must work offline has to be precached there too —
   `/solo` is, which is what makes a plane work.
 - Port is 8090 (huus 8080, feedbackr 8081).
+- **`/` depends on the Host.** `blackjack.*` serves the lobby there, so a link back
+  to the launcher goes to `/games`, never `/`.
+- **Marbles keeps its own conventions** (HTMX, `style.css`, WebSockets, its own signed
+  `user_session` cookie scoped to `/marbles`). Every URL it emits is prefixed with
+  `MARBLES`; route definitions stay relative inside `route(MARBLES)`. Tailwind does not
+  scan it. Games live in `GameManager`, swept by `RealtimeMaintenanceService`.
+- **Hide & Meow is pure client.** A level is a seed; `meow-engine.js` must stay
+  deterministic, or every saved level changes board. Changing the generator means
+  running `npm run check:meow` and accepting that existing levels move.
 
 ## Watch out for
 
@@ -52,6 +63,7 @@ is what a change needs to know.
 ```bash
 ./gradlew test       # engine + room state machine (JVM and common)
 npm run check:solo   # the offline path: real bundle + real bank.js, 25 rounds in Node
+npm run check:meow   # Hide & Meow boards: unique, solvable without guessing, seeded
 bash start.sh        # Tailwind, engine bundle, jar, run
 ```
 
