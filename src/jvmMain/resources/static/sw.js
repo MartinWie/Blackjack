@@ -5,19 +5,25 @@
  * start on a bad connection is instant and a dropped one lands on /offline instead
  * of the browser's error page.
  */
-const VERSION = 'bj-v4';
+const VERSION = 'bj-v6';
 const SHELL = [
     '/',
     '/blackjack',
     '/games',
     '/meow',
+    '/sweets',
     '/offline',
     '/solo',
     '/static/hub.js',
+    '/static/gift.js',
     '/static/meow/meow-engine.js',
+    '/static/meow/meow-cats.js',
     '/static/meow/meow.js',
     '/static/meow/meow.css',
     '/static/meow/cat.svg',
+    '/static/sweets/sweets-engine.js',
+    '/static/sweets/sweets.js',
+    '/static/sweets/sweets.css',
     '/static/vendor/engine.js',
     '/static/output.css',
     '/static/vendor/anime.umd.min.js',
@@ -26,9 +32,14 @@ const SHELL = [
     '/static/table.js',
     '/static/sw-register.js',
     '/static/img/favicon-32.png',
-    '/static/img/apple-touch-icon.png',
     '/static/img/icon-192.png',
-    '/static/img/icon-512.png',
+    '/static/img/games/hub-32.png',
+    '/static/img/games/hub-180.png',
+    '/static/img/games/hub-192.png',
+    '/static/img/games/hub-512.png',
+    '/static/img/games/meow-192.png',
+    '/static/img/games/sweets-192.png',
+    '/static/img/games/marbles-192.png',
     '/static/manifest.webmanifest',
 ];
 

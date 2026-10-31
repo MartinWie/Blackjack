@@ -184,8 +184,11 @@
         return out;
     }
 
-    /** k open units of one kind whose spots fit in k units of another clear the rest of those. */
-    function confinement(state, unitList, maxK) {
+    /**
+     * k open units of one kind whose spots fit in k units of another clear the rest of
+     * those. Returns the first such step that clears something, without applying it.
+     */
+    function confinementStep(state, unitList, maxK) {
         const open = unitList.filter((u) => !u.cells.some((i) => state.cat[i]));
         const kinds = ['row', 'col', 'region'];
         for (const from of kinds) for (const into of kinds) {
@@ -197,18 +200,23 @@
                     const spots = new Set(group.flatMap((u) => u.cells.filter((i) => state.cand[i])));
                     const hit = targets.filter((t) => t.cells.some((i) => spots.has(i)));
                     if (hit.length !== k) continue;
-                    let changed = false;
-                    for (const t of hit) for (const i of t.cells) {
-                        if (state.cand[i] && !spots.has(i)) { state.cand[i] = false; changed = true; }
-                    }
-                    if (changed) return true;
+                    const cleared = hit.flatMap((t) => t.cells.filter((i) => state.cand[i] && !spots.has(i)));
+                    if (cleared.length) return {cleared, from, into, k, group, hit};
                 }
             }
         }
-        return false;
+        return null;
     }
 
-    function lookahead(state, n, regions, unitList, deep) {
+    function confinement(state, unitList, maxK) {
+        const step = confinementStep(state, unitList, maxK);
+        if (!step) return false;
+        step.cleared.forEach((i) => { state.cand[i] = false; });
+        return true;
+    }
+
+    /** The first spot where a cat would leave some line or colour empty, or -1. */
+    function lookaheadStep(state, n, regions, unitList, deep) {
         for (let i = 0; i < n * n; i++) {
             if (!state.cand[i]) continue;
             const trial = {cand: state.cand.slice(), cat: state.cat.slice()};
@@ -217,9 +225,16 @@
             const dead = deep
                 ? !propagate(trial, n, regions, unitList)
                 : unitList.some((u) => !u.cells.some((k) => trial.cat[k]) && !u.cells.some((k) => trial.cand[k]));
-            if (dead) { state.cand[i] = false; return true; }
+            if (dead) return i;
         }
-        return false;
+        return -1;
+    }
+
+    function lookahead(state, n, regions, unitList, deep) {
+        const i = lookaheadStep(state, n, regions, unitList, deep);
+        if (i < 0) return false;
+        state.cand[i] = false;
+        return true;
     }
 
     /** Solves by deduction alone at `grade`; true when every cat was found. */
@@ -256,6 +271,102 @@
         return fallback;
     }
 
-    root.MeowEngine = {DIFFICULTIES, generate, countSolutions, solvable, neighbours};
+    // --- the level ladder --------------------------------------------------------
+    //
+    // The track: a hundred levels of each difficulty, then Expert for as long as anyone
+    // plays. A finished band also opens an endless mode of its own (see endlessBoard).
+
+    const BAND = 100;
+    const LADDER = [['easy', BAND], ['medium', BAND], ['hard', BAND], ['expert', Infinity]];
+    // Endless boards start far past any track index, so the two modes never share a board
+    // (the track's Expert runs on from index 101).
+    const ENDLESS_BASE = 1000000;
+
+    function stage(level) {
+        let start = 1;
+        for (const [difficulty, count] of LADDER) {
+            if (level < start + count) return {difficulty, index: level - start + 1, first: start};
+            start += count;
+        }
+    }
+
+    function boardFor(level) {
+        const s = stage(level);
+        return {...generate(s.difficulty, s.index), level, difficulty: s.difficulty};
+    }
+
+    /** Endless mode, board n of one difficulty. */
+    function endlessBoard(difficulty, n) {
+        return {...generate(difficulty, ENDLESS_BASE + n), level: n, difficulty};
+    }
+
+    /** The last track level of a difficulty's band (Infinity for Expert). */
+    function bandEnd(difficulty) {
+        let end = 0;
+        for (const [d, count] of LADDER) { end += count; if (d === difficulty) return end; }
+        return 0;
+    }
+
+    // --- hints -----------------------------------------------------------------
+
+    const UNIT_NAME = {row: 'row', col: 'column', region: 'colour'};
+
+    /**
+     * The next thing the player can know for sure, with the reason, or null. Trusts
+     * only what was revealed (found cats, empty looks), never the player's own Xs, and
+     * skips deductions the player has already marked.
+     */
+    function hint(board, found, empties, marks) {
+        const n = board.size, regions = board.regions, unitList = units(n, regions);
+        const state = {cand: new Array(n * n).fill(true), cat: new Array(n * n).fill(false)};
+        empties.forEach((i) => { state.cand[i] = false; });
+        const fresh = (i) => !marks.has(i) && !found.has(i) && !empties.has(i);
+        for (const f of found) {
+            const fr = Math.floor(f / n), fc = f % n;
+            const near = new Set(neighbours(n, f));
+            for (let k = 0; k < n * n; k++) {
+                if (k === f || !state.cand[k] || !fresh(k)) continue;
+                const why = near.has(k) ? 'It touches a cat you found, and cats never touch.'
+                    : Math.floor(k / n) === fr ? 'A cat you found already sits in this row.'
+                    : k % n === fc ? 'A cat you found already sits in this column.'
+                    : regions[k] === regions[f] ? 'A cat you found already has this colour.' : null;
+                if (why) return {cell: k, cat: false, reason: why, focus: [f]};
+            }
+            placeCat(state, n, regions, f);
+            state.cand[f] = false;
+        }
+        for (let guard = 0; guard < n * n * 4; guard++) {
+            for (const u of unitList) {
+                if (u.cells.some((i) => state.cat[i])) continue;
+                const open = u.cells.filter((i) => state.cand[i]);
+                if (open.length === 1) {
+                    return {cell: open[0], cat: true, reason: `This is the only spot left for a cat in its ${UNIT_NAME[u.kind]}.`, focus: u.cells};
+                }
+            }
+            const step = confinementStep(state, unitList, 3);
+            if (step) {
+                const target = step.cleared.find(fresh);
+                if (target !== undefined) {
+                    const what = step.k === 1
+                        ? `Every spot left in one ${UNIT_NAME[step.from]} lies in the same ${UNIT_NAME[step.into]}, so its cat takes it and the rest of that ${UNIT_NAME[step.into]} stays empty.`
+                        : `${step.k} ${UNIT_NAME[step.from]}s only have spots in the same ${step.k} ${UNIT_NAME[step.into]}s, so their cats fill those and nothing else there can hold one.`;
+                    return {cell: target, cat: false, reason: what, focus: step.group.flatMap((u) => u.cells.filter((i) => state.cand[i]))};
+                }
+                step.cleared.forEach((i) => { state.cand[i] = false; });
+                continue;
+            }
+            let i = lookaheadStep(state, n, regions, unitList, false);
+            if (i < 0) i = lookaheadStep(state, n, regions, unitList, true);
+            if (i >= 0) {
+                if (fresh(i)) return {cell: i, cat: false, reason: 'A cat here would leave some row, column or colour with no spot at all.', focus: []};
+                state.cand[i] = false;
+                continue;
+            }
+            return null;
+        }
+        return null;
+    }
+
+    root.MeowEngine = {DIFFICULTIES, LADDER, BAND, generate, countSolutions, solvable, neighbours, stage, boardFor, endlessBoard, bandEnd, hint};
     if (typeof module !== 'undefined') module.exports = root.MeowEngine;
 })(typeof self !== 'undefined' ? self : globalThis);

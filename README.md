@@ -10,9 +10,10 @@ The same server hosts two more games behind a launcher at `/`:
 | `/` | Launcher (`/games` everywhere) | offline |
 | `/blackjack` | Blackjack lobby; `/solo` and `/t/{code}` as before | solo offline |
 | `/meow` | Hide & Meow, a cat-finding logic puzzle | offline |
+| `/sweets` | Sweet Swap, a match-3 with six level types | offline |
 | `/marbles` | Marbles, realtime multiplayer odd/even (ported from `MarbleGame`) | online |
 
-`/` follows the subdomain: `blackjack.*` opens the lobby, `meow.*` the puzzle,
+`/` follows the subdomain: `blackjack.*` opens the lobby, `meow.*` and `sweets.*` their game,
 `marbles.*` redirects to `/marbles`, anything else (`games.7mw.de`) gets the launcher.
 
 ```bash
@@ -21,6 +22,7 @@ bash stop.sh
 ./gradlew test             # engine and room-state tests
 npm run check:solo         # plays 25 offline rounds through the real bundle, in Node
 npm run check:meow         # every difficulty's first 30 boards: unique, solvable, seeded
+npm run check:sweets       # Sweet Swap levels: budgets the bot met, won from the player's seed
 ```
 
 Phone: `http://<your-mac-ip>:8090` on the same wifi — `start.sh` prints the address.
@@ -113,15 +115,48 @@ names the hardest grade a board may need and the grade it must be too hard for:
 
 | | Size | May need | Must beat |
 |---|---|---|---|
-| Easy | 6×6 | singles, one colour confined to a line | — |
-| Medium | 7×7 | confinement of 2–3 colours/lines at once | grade 1 |
-| Hard | 8×8 | "a cat here would empty a line" | grade 2 |
-| Expert | 9×9 | the same, following forced cats | grade 2 |
+| Easy (levels 1–100) | 6×6 | singles, one colour confined to a line | — |
+| Medium (101–200) | 7×7 | confinement of 2–3 colours/lines at once | grade 1 |
+| Hard (201–300) | 8×8 | "a cat here would empty a line" | grade 2 |
+| Expert (301 on) | 9×9 | the same, following forced cats | grade 2 |
+
+There is no difficulty picker: the track (`LADDER` in the engine) steps up a
+difficulty every hundred levels. Finishing a band unlocks that difficulty's endless
+mode in the level selector — its own boards, seeded far past any track index — and the
+player can switch between it and the track at any time. Hint runs the same solver from what the player
+has revealed (never their own Xs) and explains the next certain step. Undo takes back
+marks only, so a wrong look cannot be bought back. Seven cat breeds (`meow-cats.js`)
+blink and twitch on staggered CSS clocks. A find picks one of five entrances (hearts,
+jump, spin, peek, meow) and ripples the cells around it; a win bounces the cats in a
+wave under one of three parties (confetti, fireworks, balloons); an unlock bursts a
+padlock open. Every particle removes itself when its animation ends.
+
+Power-ups — Catnip (reveal a cat), Yarn ball (mark what found cats rule out), Golden
+fish (+1 life, up to five), Bell (next look is free) — start at one each; after every
+finished game there is a 1-in-7 roll for a random one, shown by `static/gift.js`, which
+Sweet Swap shares.
 
 Region growth is skewed (a few big colours, some small) because even regions almost
 never give a unique board, and capped at 26% of the board so no colour swallows it.
 After 3000 tries a board that is merely solvable is accepted, so no seed can hang the
-page. Progress is the level reached per difficulty plus one board in progress each.
+page. Progress is the level reached, one board in progress and the power-up pouch.
+
+## Sweet Swap
+
+A match-3: four in a row makes a striped candy, an L or T a wrapped one, five a colour
+bomb, and every pair of specials has its own combo. Six level types — score, jelly
+(single and double), ingredient drop, orders, clear the blockers, timed — over frosting
+with up to three layers, spreading chocolate, licorice locks, countdown candy bombs and
+odd-shaped boards. Extras of its own: a Sugar Rush meter that pays a free special after
+big cascades, and four boosters (hammer, free switch, +5 moves, colour bomb) that drop
+on the same 1-in-7 roll and gift animation as Hide & Meow's power-ups.
+
+A level is a seed (`sweets-engine.js`, `level(n)`). The engine builds the board and the
+goal, then a greedy bot plays it three times — the first run from the player's own
+seed — and the move budget (or score target) is set from what the bot needed, with a
+wide margin early that narrows as levels climb. A design the bot cannot finish is
+redesigned; after six tries the level falls back to a plain score level. Moves return
+events with board snapshots, and the page animates snapshot to snapshot.
 
 ## Deploying
 
@@ -202,10 +237,13 @@ jvmMain/      the server
   resources/static/   bank.js (money), lobby.js, table.js (felt + animation), sw.js
   kotlin/de/mw/marbles/   Marbles: game state, HTMX pages, WebSocket fan-out
   resources/static/marbles/  its own stylesheet and scripts
-  resources/static/meow/     Hide & Meow: meow-engine.js (rules), meow.js (board)
+  resources/static/meow/     Hide & Meow: meow-engine.js (rules, hints), meow-cats.js, meow.js
+  resources/static/sweets/   Sweet Swap: sweets-engine.js (rules, levels, bot), sweets.js
+  resources/static/gift.js   the power-up gift both offline games share
 jsMain/       SoloTable.kt — the browser's handle on a Room; becomes vendor/engine.js
 tools/        solo-session.mjs — plays the offline path headlessly in Node
               meow-check.mjs — generates and verifies Hide & Meow boards
+              sweets-check.mjs — builds Sweet Swap levels and replays them with the bot
 ```
 
 `static/vendor/engine.js` and `static/output.css` are generated by the build. Neither

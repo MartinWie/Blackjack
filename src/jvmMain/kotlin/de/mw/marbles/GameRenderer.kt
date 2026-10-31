@@ -255,8 +255,8 @@ internal fun HTML.basePage(
         meta(name = "viewport", content = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no")
 
         // Favicon and app icons
-        link(rel = "icon", href = "/static/marbles/favicon.ico", type = "image/x-icon")
-        link(rel = "apple-touch-icon", href = "/static/marbles/apple-touch-icon.png")
+        link(rel = "icon", href = "/static/img/games/marbles-192.png", type = "image/png")
+        link(rel = "apple-touch-icon", href = "/static/img/games/hub-180.png")
         link(rel = "manifest", href = "/static/manifest.webmanifest")
         meta(name = "theme-color", content = "#4a90d9")
         meta(name = "apple-mobile-web-app-capable", content = "yes")
