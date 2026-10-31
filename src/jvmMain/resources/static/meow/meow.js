@@ -476,28 +476,34 @@
     const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
     let flipping = false;
 
-    /** Every tile flips over in a diagonal wave, and the fresh board flips back in. */
+    /**
+     * Every tile flips over in a diagonal wave and comes back cleared. Each one turns
+     * in a single motion and swaps its face while edge-on, so the wave never stalls
+     * waiting for the slowest tile (the colours stay: it is the same board).
+     */
     async function restart() {
         if (flipping) return;
         flipping = true;
-        const n = board.size;
-        const wave = (cells) => cells.forEach((c, i) => c.style.setProperty('--flip', `${(Math.floor(i / n) + (i % n)) * 30}ms`));
+        const n = board.size, step = 30, half = 230;
         clearTimeout(endTimer);
         els.board.querySelectorAll('.board-end').forEach((v) => v.remove());
-        const old = [...els.board.querySelectorAll('.cell')];
-        wave(old);
-        old.forEach((c) => c.classList.add('flip-out'));
-        await sleep(260 + (2 * n - 2) * 30);
+        els.board.classList.remove('won');
         game = fresh(game.level);
         persist();
-        build();
-        render();
         say('start');
-        const fresh_ = [...els.board.querySelectorAll('.cell')];
-        wave(fresh_);
-        fresh_.forEach((c) => c.classList.add('flip-in'));
-        await sleep(300 + (2 * n - 2) * 30);
-        fresh_.forEach((c) => c.classList.remove('flip-in'));
+        const cells = [...els.board.querySelectorAll('.cell')];
+        cells.forEach((c, i) => {
+            const delay = (Math.floor(i / n) + (i % n)) * step;
+            c.style.setProperty('--flip', `${delay}ms`);
+            c.classList.add('flipping');
+            setTimeout(() => {
+                c.className = 'cell flipping';
+                c.querySelectorAll('.cat, .heart, .dust, .star, .bubble, .paw-wave').forEach((e) => e.remove());
+            }, delay + half);
+        });
+        await sleep(half * 2 + (2 * n - 2) * step + 20);
+        cells.forEach((c) => c.classList.remove('flipping'));
+        render();
         flipping = false;
     }
 

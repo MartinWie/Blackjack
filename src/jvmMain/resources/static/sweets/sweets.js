@@ -187,12 +187,11 @@
     const tiles = new Map();
     const bgs = [], decos = [];
 
-    /** Opens level n; `flipIn` (a restart) flips the fresh candies in instead of popping them. */
-    function openLevel(n, flipIn = false) {
+    function openLevel(n) {
         els.map.hidden = true;
         els.play.hidden = false;
         els.overlay.hidden = true;
-        if (!flipIn) els.board.innerHTML = '<p class="tip" style="padding-top:40%">Baking the level…</p>';
+        els.board.innerHTML = '<p class="tip" style="padding-top:40%">Baking the level…</p>';
         els.goals.innerHTML = '';
         // Let the page paint first; the bot calibrating a new level takes a moment.
         gen++;
@@ -207,14 +206,6 @@
             rolled = false;
             buildBoard();
             render(E.snapshot(state), {instant: true});
-            if (flipIn) {
-                tiles.forEach((el) => {
-                    const m = el.style.transform.match(/-?[\d.]+/g);
-                    el.style.setProperty('--flip', `${(Math.round(Number(m[0]) / cell) + Math.round(Number(m[1]) / cell)) * 28}ms`);
-                    el.classList.add('flip-in');
-                    setTimeout(() => el.classList.remove('flip-in'), 320 + (L.w + L.h) * 28);
-                });
-            }
             els.typeLabel.textContent = TYPE_LABEL[L.type];
             els.lvlNum.textContent = `Level ${n}`;
             els.counterLabel.textContent = L.type === 'timed' ? 'Time' : 'Moves';
@@ -869,22 +860,43 @@
         setTimeout(() => { els.sheet.hidden = true; els.sheet.classList.remove('closing'); }, 280);
     }
 
-    /** Every candy flips over in a diagonal wave, then the level starts again. */
+    /**
+     * Every candy flips over in a diagonal wave and comes back as the fresh board. The
+     * old candy turns away and the new one turns in from the same spot straight after,
+     * so the wave rolls on without waiting for the slowest tile.
+     */
     async function flipRestart() {
         if (!L || busy) return;
         setBusy(true);
-        const mine = gen;
-        const tilesNow = [...tiles.values()];
-        tilesNow.forEach((el) => {
+        stopClock();
+        clearTimeout(hintTimer);
+        setAim(null);
+        const step = 28, half = 230;
+        const waveAt = (el) => {
             const m = el.style.transform.match(/-?[\d.]+/g);
-            const col = m ? Math.round(Number(m[0]) / cell) : 0, row = m ? Math.round(Number(m[1]) / cell) : 0;
-            el.style.setProperty('--flip', `${(row + col) * 28}ms`);
+            return m ? (Math.round(Number(m[0]) / cell) + Math.round(Number(m[1]) / cell)) * step : 0;
+        };
+        const old = [...tiles.values()];
+        tiles.clear();
+        old.forEach((el) => {
+            const delay = waveAt(el);
+            el.style.setProperty('--flip', `${delay}ms`);
             el.classList.add('flip-out');
+            setTimeout(() => el.remove(), delay + half + 20);
         });
-        await sleep(260 + (L.w + L.h) * 28);
-        if (mine !== gen) return;
+        state = E.start(L);
+        rolled = false;
+        render(E.snapshot(state), {instant: true});
+        tiles.forEach((el) => {
+            el.style.setProperty('--flip', `${waveAt(el) + half}ms`);
+            el.classList.remove('born');
+            el.classList.add('flip-in');
+        });
+        await sleep(half * 2 + (L.w + L.h) * step + 40);
+        tiles.forEach((el) => el.classList.remove('flip-in'));
         setBusy(false);
-        openLevel(L.n, true);
+        if (L.type === 'timed') startClock(L.time);
+        scheduleHint();
     }
 
     function showRules() {

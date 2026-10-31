@@ -236,8 +236,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 .sheet-card h2 { margin: 0 0 8px; font-size: 26px; font-weight: 900; color: var(--pink); }
 #map.slide-in { animation: slide-up .45s cubic-bezier(.2, .9, .3, 1.05) both; }
 /* the tile's own transform places it, so the flip turns its artwork instead */
-.tile.flip-out svg { animation: tile-flip-out .26s ease-in var(--flip, 0s) both; }
-.tile.flip-in svg { animation: tile-flip-in .3s ease-out var(--flip, 0s) both; }
+.tile.flip-out svg { animation: tile-flip-out .23s cubic-bezier(.45, 0, 1, .6) var(--flip, 0s) both; }
+.tile.flip-in svg { animation: tile-flip-in .23s cubic-bezier(0, .4, .55, 1) var(--flip, 0s) both; }
 .sheet-card h3 { margin: 16px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-soft); }
 .sheet-card li, .sheet-card p { font-size: 14px; font-weight: 700; line-height: 1.4; color: var(--ink); }
 .sheet-card ul { margin: 4px 0; padding-left: 18px; }
