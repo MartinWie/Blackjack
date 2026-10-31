@@ -128,15 +128,31 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 .board.thud { animation: thud .35s ease-out; }
 .counter.bump { animation: counter-bump .6s cubic-bezier(.3, 1.8, .5, 1); }
 
-/* booster moments */
-.spark { position: absolute; border-radius: 50%; animation: spark .6s ease-out forwards; box-shadow: 0 0 6px #fff; }
-.hammer-fx { position: absolute; z-index: 7; transform-origin: 85% 90%; animation: hammer .5s cubic-bezier(.5, 0, .3, 1.4) forwards; filter: drop-shadow(0 4px 4px rgba(0,0,0,.25)); }
+/* booster moments: loud on purpose */
+.flash { position: fixed; inset: 0; z-index: 25; pointer-events: none; animation: flash .45s ease-out forwards; }
+.shake-s { animation: shake-s .35s ease-out; }
+.shake-m { animation: shake-m .5s ease-out; }
+.shake-l { animation: shake-l .7s cubic-bezier(.36, .07, .19, .97); }
+.spark { position: absolute; z-index: 6; border-radius: 50%; animation: spark .7s ease-out forwards; box-shadow: 0 0 10px #fff; }
+.page-spark { position: fixed; z-index: 26; width: 12px; height: 12px; border-radius: 50%; pointer-events: none; box-shadow: 0 0 8px #fff; animation: spark .7s ease-out forwards; }
+.shard { position: absolute; z-index: 6; border-radius: 3px; box-shadow: 0 0 4px rgba(255,255,255,.8); animation: shard 1s cubic-bezier(.2, .6, .4, 1) forwards; }
+.shock { position: absolute; z-index: 5; border-radius: 50%; border: 6px solid rgba(255,255,255,.9); box-shadow: 0 0 40px #FF8DC8; animation: shock .6s ease-out both; }
+.hammer-fx { position: absolute; z-index: 9; transform-origin: 92% 92%; animation: hammer .62s cubic-bezier(.6, 0, .3, 1.5) forwards; filter: drop-shadow(0 10px 10px rgba(0,0,0,.35)); }
 .hammer-fx svg { width: 100%; height: 100%; }
-.trail { position: absolute; border-radius: 50%; background: radial-gradient(#fff, #C9B6FF 60%, transparent 70%); animation: trail .5s ease-out both; }
-.swirl { position: absolute; border-radius: 50%; border: 3px dashed #9B7BFF; animation: swirl .5s ease-out forwards; }
-.bomb-drop { position: absolute; z-index: 7; animation: bomb-drop .52s cubic-bezier(.55, 0, .9, .5) forwards; }
-.bomb-drop svg { width: 100%; height: 100%; filter: drop-shadow(0 4px 4px rgba(0,0,0,.3)); }
-.bolt { position: absolute; transform-origin: 0 50%; border-radius: 4px; background: linear-gradient(90deg, #fff, #FFF39A, #fff); box-shadow: 0 0 10px #FFF39A, 0 0 3px #fff; opacity: 0; animation: bolt .35s ease-out both; }
+.trail { position: absolute; z-index: 6; border-radius: 50%; background: radial-gradient(#fff, #FFE27A 55%, transparent 70%); animation: trail .6s ease-out both; }
+.swirl { position: absolute; z-index: 5; border-radius: 50%; border: 5px dashed #fff; background: conic-gradient(from 0deg, #FF5FAE55, #FFCF3355, #4CC86A55, #3FA9F555, #9B5DE555, #FF5FAE55); animation: swirl .7s ease-out forwards; }
+.tile.lift { z-index: 8; transition-duration: .55s !important; }
+.tile.lift svg { animation: lift .6s cubic-bezier(.3, 1.4, .5, 1); }
+.bomb-drop { position: absolute; z-index: 9; animation: bomb-drop .56s cubic-bezier(.55, 0, .9, .45) forwards; }
+.bomb-drop svg { width: 100%; height: 100%; filter: drop-shadow(0 8px 8px rgba(0,0,0,.35)); }
+.bolt { position: absolute; z-index: 5; transform-origin: 0 50%; border-radius: 6px; background: linear-gradient(90deg, #fff, #FFF39A, #9FE3FF, #fff); box-shadow: 0 0 16px 4px #FFF39A, 0 0 4px #fff; opacity: 0; animation: bolt .45s ease-out both; }
+.comic { position: absolute; z-index: 10; width: 0; height: 0; pointer-events: none; animation: comic 1.1s cubic-bezier(.3, 1.6, .5, 1) forwards; }
+.comic i { position: absolute; left: -95px; top: -70px; width: 190px; height: 140px; background: #FFE27A;
+    clip-path: polygon(50% 0, 60% 22%, 82% 6%, 78% 32%, 100% 30%, 84% 50%, 100% 70%, 76% 70%, 82% 95%, 60% 78%, 50% 100%, 40% 78%, 18% 95%, 24% 70%, 0 70%, 16% 50%, 0 30%, 22% 32%, 18% 6%, 40% 22%);
+    filter: drop-shadow(0 6px 0 rgba(0,0,0,.15)); }
+.comic b { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%) rotate(-8deg); font-size: 40px; font-weight: 900; white-space: nowrap; color: #fff; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; text-shadow: 0 4px 0 var(--ink); }
+.plus-five { position: fixed; z-index: 27; transform: translate(-50%, -50%); font-size: 120px; font-weight: 900; color: #fff; -webkit-text-stroke: 5px #2E9A4B; paint-order: stroke fill; text-shadow: 0 8px 0 #2E9A4B, 0 0 40px #7FE0A0; pointer-events: none; animation: plus-five .6s cubic-bezier(.3, 1.8, .5, 1) both; transition: left .45s cubic-bezier(.6, 0, .4, 1), top .45s cubic-bezier(.6, 0, .4, 1), font-size .45s, opacity .45s; }
+.plus-five.go { font-size: 34px; opacity: .6; }
 .boardwrap.aim-hammer .tile { cursor: crosshair; }
 .boardwrap.aim-hammer .board, .boardwrap.aim-switch .board { animation: aim-glow 1.2s ease-in-out infinite; border-radius: 12px; }
 .board.quake .tile svg { animation: sag 2.4s ease-in-out both; filter: saturate(.6) drop-shadow(0 2px 1px rgba(0,0,0,.18)); }
@@ -148,14 +164,14 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 /* --- effects -------------------------------------------------------------- */
 
 .fx { position: absolute; inset: 0; pointer-events: none; z-index: 5; overflow: visible; }
-.beam { position: absolute; border-radius: 999px; background: linear-gradient(90deg, transparent, #fff 20%, #FFF7B0 50%, #fff 80%, transparent); box-shadow: 0 0 18px #fff; animation: beam .32s ease-out forwards; }
+.beam { position: absolute; z-index: 4; border-radius: 999px; background: linear-gradient(90deg, transparent, #fff 15%, #FFF39A 50%, #fff 85%, transparent); box-shadow: 0 0 30px 8px #fff, 0 0 60px 16px #FFB0DA; animation: beam .45s ease-out forwards; }
 .beam.v { background: linear-gradient(180deg, transparent, #fff 20%, #FFF7B0 50%, #fff 80%, transparent); }
-.ring { position: absolute; border-radius: 50%; border: 6px solid #fff; box-shadow: 0 0 20px #FFD6EE; animation: ring .4s ease-out forwards; }
-.zap { position: absolute; width: var(--cell); height: var(--cell); border-radius: 50%; background: radial-gradient(#fff, rgba(255,255,255,0) 70%); animation: zap .35s ease-out forwards; }
+.ring { position: absolute; z-index: 4; border-radius: 50%; border: 10px solid #fff; box-shadow: 0 0 30px #FFD6EE, inset 0 0 20px #FFD6EE; animation: ring .5s ease-out forwards; }
+.zap { position: absolute; z-index: 4; border-radius: 50%; background: radial-gradient(#fff, #FFF39A 40%, rgba(255,255,255,0) 70%); animation: zap .45s ease-out both; }
 .popup { position: absolute; font-weight: 900; font-size: 18px; color: #fff; text-shadow: 0 2px 0 var(--pink), 0 0 6px rgba(0,0,0,.2); animation: rise .8s ease-out forwards; white-space: nowrap; }
 .banner {
     position: absolute; left: 50%; top: 42%; z-index: 6; pointer-events: none;
-    font-size: 40px; font-weight: 900; color: #fff; white-space: nowrap;
+    font-size: 52px; font-weight: 900; color: #fff; white-space: nowrap; -webkit-text-stroke: 2px #C93A86;
     text-shadow: 0 4px 0 var(--pink), 0 8px 18px rgba(155, 40, 110, .35);
     transform: translate(-50%, -50%) scale(0); opacity: 0;
 }
@@ -245,9 +261,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 @keyframes born { from { transform: scale(0) rotate(-40deg); } to { transform: none; } }
 @keyframes glow { from { filter: drop-shadow(0 0 0 #fff); } to { filter: drop-shadow(0 0 6px #fff) brightness(1.08); } }
 @keyframes shake { 0%, 100% { transform: none; } 30% { transform: translateX(-3px); } 60% { transform: translateX(3px); } }
-@keyframes beam { 0% { opacity: 0; transform: scale(.2); } 30% { opacity: 1; } 100% { opacity: 0; transform: scale(1); } }
-@keyframes ring { from { transform: scale(.2); opacity: 1; } to { transform: scale(1); opacity: 0; } }
-@keyframes zap { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
+@keyframes beam { 0% { opacity: 0; transform: scaleX(.1) scaleY(1.6); } 25% { opacity: 1; transform: scaleX(1) scaleY(1.4); } 100% { opacity: 0; transform: scaleX(1) scaleY(.3); } }
+@keyframes ring { from { transform: scale(.2); opacity: 1; } to { transform: scale(1.3); opacity: 0; } }
+@keyframes zap { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
 @keyframes rise { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, -40px); opacity: 0; } }
 @keyframes banner { 0% { transform: translate(-50%, -50%) scale(0) rotate(-8deg); opacity: 0; } 25% { transform: translate(-50%, -50%) scale(1.1) rotate(2deg); opacity: 1; } 70% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(-50%, -70%) scale(.9); opacity: 0; } }
 @keyframes armed { 50% { box-shadow: 0 0 0 6px #FF5FAE55, var(--shadow); } }
@@ -255,13 +271,22 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 @keyframes sag { 0%, 30% { transform: none; } 55% { transform: translateY(18%) scaleY(.82) scaleX(1.1); } 75% { transform: translateY(10%) scaleY(.9) rotate(-6deg); } 100% { transform: translateY(14%) scaleY(.88) scaleX(1.06) rotate(4deg); } }
 @keyframes thud { 0%, 100% { transform: none; } 30% { transform: translateY(6px) scale(.99); } 60% { transform: translateY(-2px); } }
 @keyframes counter-bump { 0% { transform: none; } 40% { transform: scale(1.3) rotate(-4deg); background: #E4FFE9; } 100% { transform: none; } }
-@keyframes spark { from { transform: translate(0, 0) scale(1); opacity: 1; } to { transform: translate(var(--dx), var(--dy)) scale(.2); opacity: 0; } }
-@keyframes hammer { 0% { transform: rotate(-80deg) translateY(-20px); opacity: 0; } 25% { opacity: 1; } 65% { transform: rotate(18deg); } 80% { transform: rotate(8deg); } 100% { transform: rotate(14deg); opacity: 0; } }
-@keyframes trail { 0% { transform: scale(0); opacity: 0; } 30% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(.4); opacity: 0; } }
-@keyframes swirl { from { transform: rotate(0) scale(.5); opacity: 1; } to { transform: rotate(240deg) scale(1.3); opacity: 0; } }
-@keyframes bomb-drop { 0% { transform: translateY(var(--fall)) rotate(-200deg) scale(.8); opacity: 0; } 15% { opacity: 1; } 100% { transform: none; opacity: 1; } }
-@keyframes bolt { 0% { opacity: 0; transform-origin: 0 50%; clip-path: inset(0 100% 0 0); } 40% { opacity: 1; clip-path: inset(0 0 0 0); } 100% { opacity: 0; clip-path: inset(0 0 0 0); } }
 @keyframes aim-glow { 0%, 100% { box-shadow: 0 0 0 3px #FF5FAE55; } 50% { box-shadow: 0 0 0 7px #FF5FAE99; } }
+@keyframes flash { from { opacity: 1; } to { opacity: 0; } }
+@keyframes shake-s { 0%, 100% { transform: none; } 25% { transform: translate(-4px, 2px); } 50% { transform: translate(4px, -2px); } 75% { transform: translate(-2px, 1px); } }
+@keyframes shake-m { 0%, 100% { transform: none; } 15% { transform: translate(-8px, 4px) rotate(-.6deg); } 35% { transform: translate(8px, -4px) rotate(.6deg); } 55% { transform: translate(-5px, 2px); } 75% { transform: translate(3px, -1px); } }
+@keyframes shake-l { 0%, 100% { transform: none; } 10% { transform: translate(-14px, 8px) rotate(-1.5deg); } 25% { transform: translate(14px, -8px) rotate(1.5deg); } 40% { transform: translate(-11px, 5px) rotate(-1deg); } 55% { transform: translate(9px, -4px) rotate(.8deg); } 70% { transform: translate(-5px, 2px); } 85% { transform: translate(3px, -1px); } }
+@keyframes spark { from { transform: translate(0, 0) scale(1.2); opacity: 1; } to { transform: translate(var(--dx), var(--dy)) scale(.2); opacity: 0; } }
+@keyframes shard { 0% { transform: translate(0, 0) rotate(0) scale(1.2); opacity: 1; } 55% { transform: translate(var(--dx), var(--dy)) rotate(calc(var(--rot) * .6)) scale(1); opacity: 1; } 100% { transform: translate(calc(var(--dx) * 1.15), calc(var(--dy) + 140px)) rotate(var(--rot)) scale(.6); opacity: 0; } }
+@keyframes shock { from { transform: scale(.1); opacity: 1; border-width: 14px; } to { transform: scale(1); opacity: 0; border-width: 1px; } }
+@keyframes hammer { 0% { transform: rotate(-120deg) scale(.7); opacity: 0; } 20% { opacity: 1; } 60% { transform: rotate(14deg) scale(1.05); } 72% { transform: rotate(-6deg); } 85% { transform: rotate(4deg); opacity: 1; } 100% { transform: rotate(0) scale(.9); opacity: 0; } }
+@keyframes trail { 0% { transform: scale(0); opacity: 0; } 30% { transform: scale(1.6); opacity: 1; } 100% { transform: scale(.3); opacity: 0; } }
+@keyframes swirl { from { transform: rotate(0) scale(.3); opacity: 1; } to { transform: rotate(320deg) scale(1.4); opacity: 0; } }
+@keyframes lift { 0% { transform: none; } 40% { transform: scale(1.6) rotate(200deg); } 100% { transform: scale(1) rotate(360deg); } }
+@keyframes bomb-drop { 0% { transform: translateY(var(--fall)) rotate(-540deg) scale(.6); opacity: 0; } 12% { opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes bolt { 0% { opacity: 0; clip-path: inset(0 100% 0 0); } 35% { opacity: 1; clip-path: inset(0 0 0 0); } 100% { opacity: 0; clip-path: inset(0 0 0 0); } }
+@keyframes comic { 0% { transform: scale(0) rotate(-30deg); opacity: 0; } 25% { transform: scale(1.25) rotate(6deg); opacity: 1; } 40% { transform: scale(1) rotate(0); } 80% { transform: scale(1); opacity: 1; } 100% { transform: scale(.85) translateY(-30px); opacity: 0; } }
+@keyframes plus-five { from { transform: translate(-50%, -50%) scale(0) rotate(-25deg); } to { transform: translate(-50%, -50%) scale(1) rotate(0); } }
 @keyframes shimmer { to { background-position: 32px 0; } }
 @keyframes card { from { transform: scale(.6) translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes star { from { transform: scale(0) rotate(-90deg); } to { transform: none; } }

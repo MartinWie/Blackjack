@@ -16,8 +16,8 @@ private class Game(
 
 private val games = listOf(
     Game("/blackjack", "Blackjack", "Solo or at a shared table", "/static/img/icon-192.png", "from-gold/25", offline = true, badge = "Online/Offline"),
-    Game("/meow", "Hide & Meow", "Find the hiding cats · gets trickier as you go", "/static/img/games/meow-192.png", "from-rose-300/25", offline = true, badge = "Offline"),
-    Game("/sweets", "Sweet Swap", "Match three · six kinds of level", "/static/img/games/sweets-192.png", "from-pink-400/25", offline = true, badge = "Offline"),
+    Game("/meow", "Hide & Meow", "Find the hiding cats", "/static/img/games/meow-192.png", "from-rose-300/25", offline = true, badge = "Offline"),
+    Game("/sweets", "Sweet Swap", "Match three", "/static/img/games/sweets-192.png", "from-pink-400/25", offline = true, badge = "Offline"),
     Game("/marbles", "Marbles", "Guess odd or even with friends", "/static/img/games/marbles-192.png", "from-sky-400/25", offline = false, badge = "Online"),
 )
 

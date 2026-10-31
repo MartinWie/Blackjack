@@ -57,7 +57,6 @@ fun meowPage(): String = buildString {
                 }
                 div(classes = "status") {
                     div(classes = "found") {
-                        img(alt = "", src = asset("/static/meow/cat.svg"))
                         div(classes = "pill") {
                             i { id = "pill-fill" }
                             b { id = "pill-text"; +"0/0" }

@@ -473,12 +473,32 @@
         }
     }
 
-    function restart() {
+    const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+    let flipping = false;
+
+    /** Every tile flips over in a diagonal wave, and the fresh board flips back in. */
+    async function restart() {
+        if (flipping) return;
+        flipping = true;
+        const n = board.size;
+        const wave = (cells) => cells.forEach((c, i) => c.style.setProperty('--flip', `${(Math.floor(i / n) + (i % n)) * 30}ms`));
+        clearTimeout(endTimer);
+        els.board.querySelectorAll('.board-end').forEach((v) => v.remove());
+        const old = [...els.board.querySelectorAll('.cell')];
+        wave(old);
+        old.forEach((c) => c.classList.add('flip-out'));
+        await sleep(260 + (2 * n - 2) * 30);
         game = fresh(game.level);
         persist();
         build();
         render();
         say('start');
+        const fresh_ = [...els.board.querySelectorAll('.cell')];
+        wave(fresh_);
+        fresh_.forEach((c) => c.classList.add('flip-in'));
+        await sleep(300 + (2 * n - 2) * 30);
+        fresh_.forEach((c) => c.classList.remove('flip-in'));
+        flipping = false;
     }
 
     /** After every finished game, win or lose: a one-in-seven chance of a gift. */
@@ -570,8 +590,15 @@
 
     // --- sheets ----------------------------------------------------------------
 
+    function closeSheet() {
+        if (els.sheet.hidden || els.sheet.classList.contains('closing')) return;
+        els.sheet.classList.add('closing');
+        setTimeout(() => { els.sheet.hidden = true; els.sheet.classList.remove('closing'); }, 280);
+    }
+
     function openSheet(html) {
         els.sheetBody.innerHTML = html;
+        els.sheet.classList.remove('closing');
         els.sheet.hidden = false;
     }
 
@@ -599,7 +626,8 @@
         }
         openSheet(html);
         const current = els.sheetBody.querySelector('.current') || els.sheetBody.querySelector('.level-grid button:not(:disabled):last-of-type');
-        if (current) current.scrollIntoView({block: 'center'});
+        // Only when it is out of sight, so a short list keeps its title in view.
+        if (current) current.scrollIntoView({block: 'nearest'});
     }
 
     const RULES = [
@@ -691,14 +719,14 @@
     els.levelsBtn.addEventListener('click', showLevels);
     els.restartBtn.addEventListener('click', restart);
     els.helpBtn.addEventListener('click', showRules);
-    els.sheetClose.addEventListener('click', () => { els.sheet.hidden = true; });
+    els.sheetClose.addEventListener('click', closeSheet);
     els.sheet.addEventListener('click', (e) => {
-        if (e.target === els.sheet) els.sheet.hidden = true;
+        if (e.target === els.sheet) closeSheet();
         const b = e.target.closest('[data-level]');
-        if (b && !b.disabled) { els.sheet.hidden = true; open('track', Number(b.dataset.level)); }
+        if (b && !b.disabled) { closeSheet(); open('track', Number(b.dataset.level)); }
         const m = e.target.closest('[data-mode]');
         if (m && !m.disabled) {
-            els.sheet.hidden = true;
+            closeSheet();
             const mode = m.dataset.mode;
             open(mode, mode === 'track' ? store.level : store.endless[mode] || 1);
         }
