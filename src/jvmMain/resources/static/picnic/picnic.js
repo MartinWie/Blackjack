@@ -234,6 +234,8 @@
 
     function build() {
         clearTimeout(endTimer);
+        // The end-of-game layer lives on the mat, not in the board it covers.
+        els.plate.querySelectorAll('.board-end, .yum, .dancer').forEach((el) => el.remove());
         els.board.innerHTML = '';
         els.board.classList.remove('won', 'quake');
         for (let i = 0; i < N * N; i++) {
