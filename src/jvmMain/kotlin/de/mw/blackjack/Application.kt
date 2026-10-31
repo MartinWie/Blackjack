@@ -18,11 +18,13 @@ val envPort: Int = System.getenv("APP_PORT")?.toIntOrNull() ?: 8090
 
 /**
  * Cookie signing key (hex). The dev default is public knowledge — a deployment sets
- * its own, or every restart hands out new player ids.
+ * its own, or every restart hands out new player ids. compose.yaml maps BJ_SESSION_KEY
+ * to the SECRET_ name; Dokploy passes BJ_SESSION_KEY through as is.
  */
-val sessionSignKey: String = System.getenv("SECRET_BJ_SESSION-KEY")
+val sessionSignKey: String = (System.getenv("SECRET_BJ_SESSION-KEY") ?: System.getenv("BJ_SESSION_KEY"))
+    ?.takeIf { it.isNotBlank() }
     ?: "3f2a91c07d5e4b8aa1c6f0e93b7d2456".also {
-        logger.warn("SECRET_BJ_SESSION-KEY is not set — using the dev default.")
+        logger.warn("Neither SECRET_BJ_SESSION-KEY nor BJ_SESSION_KEY is set — using the dev default.")
     }
 
 fun main() {

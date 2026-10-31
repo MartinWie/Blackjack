@@ -110,7 +110,7 @@ file.
 
 Two things a deployment has to get right:
 
-- **`SECRET_BJ_SESSION-KEY`.** Unset means the public dev key, and the log says so —
+- **`SECRET_BJ_SESSION-KEY` (or `BJ_SESSION_KEY`).** Unset means the public dev key, and the log says so —
   `docker logs … | grep "dev default"` must come back empty.
 - **One replica.** Rooms and their SSE subscribers live in this process's memory. A
   second replica is a second set of tables that cannot see the first, and a player
