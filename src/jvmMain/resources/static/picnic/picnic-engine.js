@@ -26,10 +26,10 @@
     // ants must wait on a seat; `run` is how many nests of the eating order land in
     // one lane in a row. Both, with the seat count, are what makes a level hard.
     const SPECS = {
-        easy:   {lanes: 3, seats: 4, min: 6, max: 14, run: [2, 4], early: 0.35},
-        medium: {lanes: 3, seats: 3, min: 5, max: 13, run: [3, 5], early: 0.5},
-        hard:   {lanes: 4, seats: 3, min: 6, max: 14, run: [3, 6], early: 0.85},
-        expert: {lanes: 4, seats: 2, min: 5, max: 14, run: [4, 8], early: 0.9},
+        easy:   {lanes: 3, seats: 3, min: 6, max: 14, run: [2, 4], early: 0.5},
+        medium: {lanes: 3, seats: 2, min: 6, max: 14, run: [2, 5], early: 0.6},
+        hard:   {lanes: 4, seats: 2, min: 5, max: 13, run: [3, 6], early: 0.8},
+        expert: {lanes: 4, seats: 2, min: 4, max: 12, run: [4, 8], early: 0.95},
     };
 
     function hashSeed(text) {
@@ -73,11 +73,11 @@
         return out;
     }
 
-    /** Ants climb up from the blanket: they reach a pixel only when nothing is below it. */
+    /** A pixel is within reach when it touches the edge or open space connected to it. */
     function exposed(board, i) {
         if (board.grid[i] < 0) return false;
-        if (i >= N * (N - 1)) return true;
-        return !!board.outside[i + N];
+        if (onEdge(i)) return true;
+        return neighbours(i).some((j) => board.outside[j]);
     }
 
     /** Eats pixel i: it turns into outside, and so does any hole it opens onto. */
@@ -136,12 +136,15 @@
         const mirror = r() < 0.5;
         const grid = pic.grid.map((_, i) => (mirror ? pic.grid[Math.floor(i / N) * N + (N - 1 - (i % N))] : pic.grid[i]));
         const board = {grid: grid.slice(), outside: outsideOf(grid), left: grid.filter((v) => v >= 0).length};
-        // Within a band, nests shrink a little as the levels climb.
+        // Nests scale with the picture, so a big plate is not forty tiny nests; within a
+        // band they shrink a little as the levels climb.
         const ramp = Math.min(1, (index - 1) / 60);
-        const max = Math.max(spec.min, Math.round(spec.max - ramp * (spec.max - spec.min) * 0.5));
+        const scale = Math.max(1, board.left / 240);
+        const sized = {...spec, min: Math.round(spec.min * scale), max: Math.round(spec.max * scale)};
+        const max = Math.max(sized.min, Math.round(sized.max - ramp * (sized.max - sized.min) * 0.5));
         // Early nests ramp in across the band too, so its first levels ease you in.
-        const tuned = {...spec, early: spec.early * (0.75 + 0.25 * ramp)};
-        const plan = eatingOrder(board, tuned, r, max) || simpleOrder(board, spec, r, max);
+        const tuned = {...sized, early: spec.early * (0.75 + 0.25 * ramp)};
+        const plan = eatingOrder(board, tuned, r, max) || simpleOrder(board, sized, r, max);
         // Deal the plan into lanes in runs, never reordering it: the plan stays playable.
         const lanes = Array.from({length: spec.lanes}, () => []);
         let lane = 0;
@@ -172,7 +175,9 @@
                 const claimed = (c) => sim.seats.reduce((n, g) => n + (g && g.colour === c ? g.left : 0), 0);
                 const open = colours.filter((c) => remaining(sim.board, c) - claimed(c) > 0);
                 const reachable = open.filter((c) => sim.board.grid.some((v, i) => v === c && exposed(sim.board, i)));
-                const pool = (r() < spec.early || !reachable.length ? open : reachable).slice();
+                // An early nest is one whose colour is still buried: its ants must wait.
+                const buried = open.filter((c) => !reachable.includes(c));
+                const pool = (r() < spec.early && buried.length ? buried : reachable.length ? reachable : open).slice();
                 for (let k = pool.length - 1; k > 0; k--) { const j = Math.floor(r() * (k + 1)); [pool[k], pool[j]] = [pool[j], pool[k]]; }
                 let placed = false;
                 for (const c of pool) {

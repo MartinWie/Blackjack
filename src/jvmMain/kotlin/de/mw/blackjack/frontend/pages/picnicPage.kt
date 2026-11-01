@@ -57,6 +57,8 @@ fun picnicPage(): String = buildString {
                 div(classes = "plate") {
                     id = "plate"
                     div(classes = "board") { id = "board" }
+                    // Ants walk in here, in units of the mat, above the picture.
+                    div(classes = "ants") { id = "ants" }
                     // Every ant carries its block back down here.
                     div(classes = "hole") { id = "hole" }
                 }

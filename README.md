@@ -145,23 +145,29 @@ page. Progress is the level reached, one board in progress and the power-up pouc
 
 ## Ant Picnic
 
-Sixteen pixel-art foods (`picnic-pics.js`, drawn from a few shapes) on a plate. Nests
-wait in lanes; tapping a lane's front nest sends that many ants of its colour to a
-seat. Ants climb up from the blanket, so they only reach a pixel with nothing below it
-and eat upward; ants that cannot reach anything wait on their seat. Every seat full and
-nobody able to eat: the level is lost.
+Twenty-one pixel-art foods on a 26×26 mat. The art is generated (`assets/picnic/*.png`)
+and turned into boards by `tools/picnic-pixelize.py`, which finds the pixel grid, keeps
+white inside a picture as food, and merges each picture down to a few colours; it
+writes `picnic-pics.js`, which is not edited by hand.
 
-A level is a seed. `eatingOrder` plays the board while it builds it, sending some
-nests before their colour is reachable (`early`) but always keeping a seat free, and
-the nests are dealt into lanes in runs without reordering. Following that order always
-wins, so every level can be won; `npm run check:picnic` replays them. Same track as
-Hide & Meow (100 levels a difficulty, endless modes after each band), the same gift
-drops, and four power-ups: Extra seat, Digger, Recall, Feast. Progress keeps the board
-in progress as its list of actions and replays it.
+Nests wait in lanes; tapping a lane's front nest fills a jar with that many ants of its
+colour. An ant can take any block that touches the edge or open space, comes out of
+that block carrying it, and walks it out through empty cells, around the outside of
+the mat and down the hole (in mat units, so a layout shift cannot misplace it). Ants
+whose colour is still buried wait in their jar; every jar full of ants that cannot
+reach anything and lunch is over. While every slot still shows a jar, taps wait.
 
-Nothing depends on telling colours apart: every colour has a symbol (●▲■◆★♥✚◎) on its
-nests and jars, and colour-blind mode (in Rules) stamps it on the picture's pixels too.
-On Hard and Expert the nests behind the front row stay "?" until they reach the front.
+A level is a seed. `eatingOrder` plays the board while it builds it, sending some nests
+before their colour can be reached, never so many that every slot fills; nests are
+dealt to the shortest lane in runs without reordering, so following that order always
+wins (`npm run check:picnic`). Same track as Hide & Meow (100 levels a difficulty, an
+endless mode after each band), the same gift drops, and four power-ups: Extra seat,
+Digger, Recall, Feast. Progress keeps the board in progress as its list of actions,
+with a fingerprint of the board so a changed level starts fresh.
+
+Colour-blind mode (in Rules) puts a symbol per colour (●▲■◆★♥✚◎) on the picture, the
+nests and the jars; without it they stay plain. On Hard and Expert the nests behind the
+front row stay "?" until they reach it.
 
 ## Sweet Swap
 

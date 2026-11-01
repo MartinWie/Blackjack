@@ -82,8 +82,8 @@
         t.style.setProperty('--c-dark', shade(c, -0.35));
         t.style.setProperty('--c-light', shade(c, 0.3));
         t.style.setProperty('--ink', hidden ? '#fff' : ink(c));
-        t.dataset.look = hidden ? 'mystery' : `${nest.colour}`;
-        t.innerHTML = hidden ? '<b class="q">?</b>' : `${symbol(nest.colour, c)}<b>${nest.count}</b>`;
+        t.dataset.look = hidden ? 'mystery' : `${nest.colour}${store.symbols ? '+' : ''}`;
+        t.innerHTML = hidden ? '<b class="q">?</b>' : `${store.symbols ? symbol(nest.colour, c) : ''}<b>${nest.count}</b>`;
     }
 
     /** A jar on the shelf, in its group's colour, the ant peeking over the rim. */
@@ -96,7 +96,7 @@
         el.style.setProperty('--c-dark', shade(c, -0.35));
         el.style.setProperty('--c-light', shade(c, 0.3));
         el.style.setProperty('--ink', ink(c));
-        el.innerHTML = `<span class="peek">${ANT(c)}</span>${symbol(g.colour, c)}<b>${g.left}</b>`;
+        el.innerHTML = `<span class="peek">${ANT(c)}</span>${store.symbols ? symbol(g.colour, c) : ''}<b>${g.left}</b>`;
         return el;
     }
 
@@ -122,7 +122,7 @@
     const $ = (id) => document.getElementById(id);
     const els = {
         level: $('level'), difficulty: $('difficulty'), plate: $('plate'), board: $('board'), seats: $('seats'), lanes: $('lanes'),
-        message: $('message'), powerups: $('powerups'), fly: $('fly'), hole: $('hole'),
+        message: $('message'), powerups: $('powerups'), fly: $('fly'), hole: $('hole'), ants: $('ants'),
         levelsBtn: $('levels-btn'), restartBtn: $('restart-btn'), helpBtn: $('help-btn'),
         sheet: $('sheet'), sheetBody: $('sheet-body'), sheetClose: $('sheet-close'),
     };
@@ -201,6 +201,7 @@
         ended = false;
         markBusy();
         els.fly.innerHTML = '';
+        els.ants.innerHTML = '';
         clearTimeout(endTimer);
         store.mode = mode;
         if (mode === 'track') { store.level = Math.max(1, Math.min(level, store.unlocked)); L = E.level(store.level); }
@@ -320,7 +321,7 @@
                     t.getBoundingClientRect();
                 }
                 const hidden = d > 0 && mysteries();
-                if (t.dataset.look !== (hidden ? 'mystery' : `${nest.colour}`)) paintToken(t, nest, hidden);
+                if (t.dataset.look !== (hidden ? 'mystery' : `${nest.colour}${store.symbols ? '+' : ''}`)) paintToken(t, nest, hidden);
                 else if (!hidden) t.querySelector('b').textContent = nest.count;
                 t.style.setProperty('--d', d);
                 t.classList.toggle('front', d === 0);
@@ -364,21 +365,14 @@
     const centre = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
     const sleep2 = (ms) => new Promise((done) => setTimeout(done, ms));
 
-    function walker(colour, size = 22) {
-        const el = document.createElement('div');
-        el.className = 'walker';
-        el.style.width = el.style.height = `${size}px`;
-        el.innerHTML = ANT(colour);
-        els.fly.appendChild(el);
-        return el;
-    }
 
     // --- routes ----------------------------------------------------------------------------
     //
-    // Ants never cross a block. `shown` is which pixels are still on screen (the engine is
-    // ahead of the screen); a route runs around the outside of the mat to an open edge,
-    // along empty cells to the cell under the pixel, and up into it from below, which is
-    // the game's own rule for what an ant can reach.
+    // An ant comes out of the very block it picks up and carries it away through open
+    // space only: along empty cells to the edge of the picture, around the outside of the
+    // mat and down the hole. Positions are in cells of the mat, not screen pixels, so a
+    // layout shift mid-walk cannot send an ant to the wrong place. `shown` is which
+    // pixels are still on screen, since the engine runs ahead of the screen.
 
     let shown = [];
     let waiters = [];
@@ -387,32 +381,31 @@
         shown = s.board.grid.map((v) => v >= 0);
     }
 
-    /** Empty cells from the cell under pixel i back to the edge of the mat, or null. */
-    function routeTo(i) {
-        const y = Math.floor(i / N);
-        if (y === N - 1) return [];
-        const goal = i + N;
-        if (shown[goal]) return null;
+    const onEdge = (k) => k % N === 0 || k % N === N - 1 || k < N || k >= N * (N - 1);
+
+    /** Empty cells from pixel i out to the edge of the picture ([] on the edge), or null. */
+    function routeFrom(i, blocked = shown) {
+        if (onEdge(i)) return [];
         const prev = new Int32Array(N * N).fill(-2);
-        prev[goal] = -1;
-        const queue = [goal];
-        const onEdge = (k) => k % N === 0 || k % N === N - 1 || k < N || k >= N * (N - 1);
+        const queue = [];
+        const step = (k) => {
+            const x = k % N;
+            return [k + N, k - 1, k + 1, k - N].filter((j) => j >= 0 && j < N * N && !(j === k - 1 && x === 0) && !(j === k + 1 && x === N - 1));
+        };
+        for (const j of step(i)) if (!blocked[j]) { prev[j] = -1; queue.push(j); }
         for (let q = 0; q < queue.length; q++) {
             const k = queue[q];
             if (onEdge(k)) {
-                // Walk back from the edge to the goal: that is the route in.
                 const path = [];
-                for (let c = k; c !== -1; c = prev[c]) path.push(c);
+                for (let c = k; c !== -1; c = prev[c]) path.unshift(c);
                 return path;
             }
-            const x = k % N;
-            const next = [k + N, k - 1, k + 1, k - N].filter((j) => j >= 0 && j < N * N && !(j === k - 1 && x === 0) && !(j === k + 1 && x === N - 1));
-            for (const j of next) if (prev[j] === -2 && !shown[j]) { prev[j] = k; queue.push(j); }
+            for (const j of step(k)) if (prev[j] === -2 && j !== i && !blocked[j]) { prev[j] = k; queue.push(j); }
         }
         return null;
     }
 
-    const visiblyExposed = (i) => routeTo(i) !== null;
+    const visiblyExposed = (i) => routeFrom(i) !== null;
 
     /** Resolves once pixel i can be reached on screen (or after a safety timeout). */
     function waitExposed(i, mine) {
@@ -420,7 +413,9 @@
         return new Promise((resolve) => {
             const w = {i, resolve, mine};
             waiters.push(w);
-            setTimeout(() => { if (waiters.includes(w)) { waiters = waiters.filter((x) => x !== w); resolve(); } }, 6000);
+            // Long waits are normal on a big plate (another jar may have a long queue);
+            // this only guards against the game never finishing.
+            setTimeout(() => { if (waiters.includes(w)) { waiters = waiters.filter((x) => x !== w); resolve(); } }, 30000);
         });
     }
 
@@ -431,68 +426,63 @@
         ready.forEach((w) => w.resolve());
     }
 
-    /** Screen points for a route: around the outside of the mat, then cell by cell. */
-    function routePoints(i, route) {
-        const r = els.board.getBoundingClientRect(), cw = r.width / N;
-        const at = (x, y) => [r.left + (x + 0.5) * cw, r.top + (y + 0.5) * cw];
-        const below = N + 0.4, side = 0.9;
-        const pts = [];
-        const entry = route.length ? route[0] : i;
-        const ex = entry % N, ey = Math.floor(entry / N);
-        // From under the mat to just outside the entry cell, never across it.
-        if (ey === N - 1 || !route.length) pts.push(at(ex, below));
-        else if (ex === 0) pts.push(at(-side, below), at(-side, ey));
-        else if (ex === N - 1) pts.push(at(N - 1 + side, below), at(N - 1 + side, ey));
-        else {
-            const left = ex < N / 2, sx = left ? -side : N - 1 + side;
-            pts.push(at(sx, below), at(sx, -side), at(ex, -side));
-        }
-        route.forEach((c) => pts.push(at(c % N, Math.floor(c / N))));
-        pts.push(at(i % N, Math.floor(i / N)));
+    /**
+     * The walk from pixel i to the hole, in cell units (0.5 is a cell's centre): out
+     * through `route`, a step off the picture, around its outside, then to the hole.
+     */
+    function routeCells(i, route) {
+        const cell = (k) => [k % N + 0.5, Math.floor(k / N) + 0.5];
+        const pts = [cell(i), ...route.map(cell)];
+        const [ex, ey] = pts.at(-1);
+        const out = 0.5 - 1.2, far = N + 0.7;          // just outside the picture on each side
+        const holeY = N + 1.6, mid = N / 2;
+        if (ey >= N - 1) pts.push([ex, far]);
+        else if (ex <= 1) pts.push([out, ey], [out, far]);
+        else if (ex >= N - 1) pts.push([far, ey], [far, far]);
+        else { const side = ex < mid ? out : far; pts.push([ex, out], [side, out], [side, far]); }
+        pts.push([mid, holeY]);
         return pts;
     }
 
-    /** Keyframes along a polyline at an even walking pace, the ant facing its way. */
-    function along(pts, size) {
+    /** Keyframes along a path of cell points at an even walking pace, the ant facing its way. */
+    function along(pts) {
         const lens = [0];
         for (let k = 1; k < pts.length; k++) lens.push(lens[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
         const total = lens.at(-1) || 1;
+        const pct = (v) => `${(v / N) * 100}%`;
         const frames = pts.map((p, k) => {
             const q = pts[Math.min(k + 1, pts.length - 1)], o = pts[Math.max(k - 1, 0)];
             const [dx, dy] = k < pts.length - 1 ? [q[0] - p[0], q[1] - p[1]] : [p[0] - o[0], p[1] - o[1]];
-            return {transform: `translate(${p[0] - size / 2}px, ${p[1] - size / 2}px) rotate(${Math.atan2(dy, dx) * 180 / Math.PI + 90}deg)`, offset: lens[k] / total};
+            return {left: pct(p[0]), top: pct(p[1]), transform: `translate(-50%, -50%) rotate(${Math.atan2(dy, dx) * 180 / Math.PI + 90}deg)`, offset: lens[k] / total};
         });
-        return {frames, duration: Math.max(380, total / 0.32)};
+        return {frames, duration: Math.max(420, total * 95)};
     }
 
-    /** One ant walks out along open cells, picks up its pixel and carries it home. */
-    async function fetchBlock(seatEl, i, colour, dig, mine) {
+    /** An ant comes out of its block holding it, carries it out and down the hole. */
+    async function fetchBlock(i, colour, dig, mine) {
         if (mine !== gen) return;
         const px = els.board.children[i];
-        const [sx, sy] = centre(seatEl), [hx, hy] = centre(els.hole);
-        const route = dig ? null : routeTo(i);
-        // A digger tunnels straight to its block; everyone else keeps to open ground.
-        const out = route ? [[sx, sy], ...routePoints(i, route)] : [[sx, sy], centre(px)];
-        const ant = walker(colour);
-        ant.dataset.target = i;
-        ant.insertAdjacentHTML('beforeend', `<i class="block" style="background:${colour}"></i>`);
-        const go = along(out, 22);
-        await ant.animate(go.frames, {duration: go.duration, easing: 'linear', fill: 'forwards'}).finished;
-        if (mine !== gen) { ant.remove(); return; }
-        // Grab: the pixel leaves the picture and rides on the ant's back.
-        ant.classList.add('carrying');
+        // A digger tunnels straight down to the hole; everyone else keeps to open ground.
+        // If the screen still has it buried (only after the long safety wait), route by the
+        // engine's board, which is never behind: still around blocks, never through them.
+        const route = dig ? null : routeFrom(i) || routeFrom(i, s.board.grid.map((v) => v >= 0));
+        const pts = route ? routeCells(i, route) : [[i % N + 0.5, Math.floor(i / N) + 0.5], [N / 2, N + 1.6]];
         grabbed(i);
-        px.animate([{transform: 'scale(1)'}, {transform: 'scale(1.2)', offset: .4}, {transform: 'scale(0)', opacity: 0}], {duration: 160, easing: 'ease-in', fill: 'forwards'})
+        const ant = document.createElement('div');
+        ant.className = 'walker carrying';
+        ant.dataset.target = i;
+        ant.innerHTML = `${ANT(colour)}<i class="block" style="background:${colour}"></i>`;
+        els.ants.appendChild(ant);
+        // The block shrinks into the ant's arms as it climbs out.
+        px.animate([{transform: 'scale(1)'}, {transform: 'scale(1.15)', offset: .35}, {transform: 'scale(0)', opacity: 0}], {duration: 220, easing: 'ease-in', fill: 'forwards'})
             .finished.then(() => { px.classList.add('gone'); px.getAnimations().forEach((x) => x.cancel()); });
-        await sleep2(110);
-        const home = along([...out.slice(1).reverse(), [hx, hy]], 22);
-        const back = ant.animate(home.frames, {duration: home.duration, easing: 'linear', fill: 'forwards'});
-        await back.finished;
-        // Down the hole it goes, block and all.
-        const last = back.effect.getKeyframes().at(-1).transform;
-        await ant.animate([{transform: last, opacity: 1}, {transform: `${last} scale(.2)`, opacity: 0}], {duration: 200, easing: 'ease-in', fill: 'forwards'}).finished;
+        ant.animate([{opacity: 0, scale: .4}, {opacity: 1, scale: 1}], {duration: 200, easing: 'cubic-bezier(.3, 1.5, .5, 1)', fill: 'backwards'});
+        const walk = along(pts);
+        const anim = ant.animate(walk.frames, {duration: walk.duration, easing: 'linear', fill: 'forwards'});
+        await anim.finished;
+        await ant.animate([{opacity: 1, scale: 1}, {opacity: 0, scale: .2}], {duration: 200, easing: 'ease-in', fill: 'forwards'}).finished;
         ant.remove();
-        els.hole.animate([{transform: 'translateX(-50%) scale(1)'}, {transform: 'translateX(-50%) scale(1.12, .9)'}, {transform: 'translateX(-50%) scale(1)'}], {duration: 200});
+        if (mine === gen) els.hole.animate([{transform: 'translateX(-50%) scale(1)'}, {transform: 'translateX(-50%) scale(1.12, .9)'}, {transform: 'translateX(-50%) scale(1)'}], {duration: 200});
     }
 
     /** The tapped tile glides from its lane into the jar's slot and becomes the jar. */
@@ -531,7 +521,7 @@
                     view.seats[ev.seat].left--;
                     if (count) count.textContent = Math.max(0, view.seats[ev.seat].left);
                 }
-                fetchBlock(seat, i, L.palette[ev.colour], !!ev.dig, mine);
+                fetchBlock(i, L.palette[ev.colour], !!ev.dig, mine);
                 await sleep2(step);
             }
         } else if (ev.t === 'leave') {
@@ -854,6 +844,9 @@
             store.symbols = !store.symbols;
             save();
             toggle.classList.toggle('on', store.symbols);
+            // Nests and jars carry the symbols only in colour-blind mode: redraw them.
+            els.lanes.querySelectorAll('.token').forEach((t) => { delete t.dataset.look; });
+            els.seats.querySelectorAll('.group').forEach((g) => g.remove());
             const was = pending;
             pending = 0;
             render();
