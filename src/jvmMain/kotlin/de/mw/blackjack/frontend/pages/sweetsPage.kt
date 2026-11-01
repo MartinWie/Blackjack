@@ -5,7 +5,7 @@ import kotlinx.html.*
 import kotlinx.html.stream.appendHTML
 
 private const val ICON_LEVELS =
-    """<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/></svg>"""
+    """<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.8"/></svg>"""
 private const val ICON_RESTART =
     """<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>"""
 private const val ICON_HELP =
@@ -41,16 +41,7 @@ fun sweetsPage(): String = buildString {
         }
         body {
             section(classes = "screen") {
-                id = "map"
-                div(classes = "map-top") {
-                    h1(classes = "logo") { +"Sweet"; span { +"Swap" } }
-                }
-                p(classes = "intro") { +"Swap neighbours to match three or more. Every level here has been beaten by our candy bot." }
-                div(classes = "levels") { id = "levels" }
-            }
-            section(classes = "screen") {
                 id = "play"
-                hidden = true
                 div(classes = "hud") {
                     div(classes = "lvl") {
                         small { id = "type-label" }
@@ -75,7 +66,7 @@ fun sweetsPage(): String = buildString {
                     div(classes = "banner") { id = "banner" }
                 }
                 div(classes = "toolbar") {
-                    toolButton("map-btn", "Map", ICON_LEVELS)
+                    toolButton("levels-btn", "Levels", ICON_LEVELS)
                     toolButton("restart-btn", "Restart", ICON_RESTART)
                     toolButton("help-btn", "Rules", ICON_HELP)
                 }

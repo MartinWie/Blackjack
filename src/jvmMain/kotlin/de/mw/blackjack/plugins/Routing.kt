@@ -1,5 +1,7 @@
 package de.mw.blackjack.plugins
 
+import de.mw.blackjack.BuildInfo
+
 import de.mw.blackjack.frontend.pages.hubPage
 import de.mw.blackjack.frontend.pages.lobbyPage
 import de.mw.blackjack.frontend.pages.meowPage
@@ -133,8 +135,12 @@ fun Application.configureRouting() {
         // The service worker must be served from the root to control the whole app.
         get("/sw.js") {
             val stream = javaClass.getResourceAsStream("/static/sw.js")
+            // The cache is named after the build, so every deploy installs a fresh one.
             if (stream == null) call.respond(HttpStatusCode.NotFound)
-            else call.respondText(stream.bufferedReader().readText(), ContentType.Text.JavaScript)
+            else call.respondText(
+                stream.bufferedReader().readText().replace(Regex("const VERSION = '[^']*';"), "const VERSION = 'games-${BuildInfo.id}';"),
+                ContentType.Text.JavaScript,
+            )
         }
 
         /**

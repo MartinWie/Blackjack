@@ -118,10 +118,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
     content: ""; position: absolute; left: 14%; right: 14%; top: -7px; height: 9px; border-radius: 5px;
     background: var(--c-dark); box-shadow: inset 0 2px 0 rgba(255,255,255,.25);
 }
-.seat .group .peek { position: absolute; top: -20px; left: 50%; width: 26px; height: 26px; transform: translateX(-50%); animation: idle-bob 1.4s ease-in-out infinite; }
-.seat .group .peek .ant { width: 100%; height: 100%; }
 .seat .group .sym { position: absolute; left: 6px; top: 8px; width: 13px; height: 13px; opacity: .85; }
-.seat .group b { font-size: 21px; font-weight: 900; color: var(--ink); margin-top: 8px; text-shadow: 0 1px 0 rgba(0,0,0,.12); }
+.seat .group b { font-size: 21px; font-weight: 900; color: var(--ink); margin-top: 4px; text-shadow: 0 1px 0 rgba(0,0,0,.12); }
 .seat.pickable .group { box-shadow: 0 0 0 3px #6FA9D6, inset 0 -5px 0 var(--c-dark); animation: pulse 1s ease-in-out infinite; }
 
 .lanes { display: grid; gap: 8px; padding: 0 6px; }

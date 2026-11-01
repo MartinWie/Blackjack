@@ -96,7 +96,7 @@
         el.style.setProperty('--c-dark', shade(c, -0.35));
         el.style.setProperty('--c-light', shade(c, 0.3));
         el.style.setProperty('--ink', ink(c));
-        el.innerHTML = `<span class="peek">${ANT(c)}</span>${store.symbols ? symbol(g.colour, c) : ''}<b>${g.left}</b>`;
+        el.innerHTML = `${store.symbols ? symbol(g.colour, c) : ''}<b>${g.left}</b>`;
         return el;
     }
 
@@ -444,43 +444,83 @@
         return pts;
     }
 
-    /** Keyframes along a path of cell points at an even walking pace, the ant facing its way. */
+    /**
+     * Keyframes along a path of cell points at an even walking pace. The ant keeps its
+     * heading along each straight stretch and turns briskly at the corner, rather than
+     * swinging round over the whole stretch (which looked like drifting sideways).
+     */
     function along(pts) {
+        const clean = pts.filter((p, k) => k === 0 || Math.hypot(p[0] - pts[k - 1][0], p[1] - pts[k - 1][1]) > 0.01);
+        if (clean.length < 2) clean.push(clean[0]);
         const lens = [0];
-        for (let k = 1; k < pts.length; k++) lens.push(lens[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
+        for (let k = 1; k < clean.length; k++) lens.push(lens[k - 1] + Math.hypot(clean[k][0] - clean[k - 1][0], clean[k][1] - clean[k - 1][1]));
         const total = lens.at(-1) || 1;
+        const duration = Math.max(300, total * 62);
         const pct = (v) => `${(v / N) * 100}%`;
-        const frames = pts.map((p, k) => {
-            const q = pts[Math.min(k + 1, pts.length - 1)], o = pts[Math.max(k - 1, 0)];
-            const [dx, dy] = k < pts.length - 1 ? [q[0] - p[0], q[1] - p[1]] : [p[0] - o[0], p[1] - o[1]];
-            return {left: pct(p[0]), top: pct(p[1]), transform: `translate(-50%, -50%) rotate(${Math.atan2(dy, dx) * 180 / Math.PI + 90}deg)`, offset: lens[k] / total};
-        });
-        return {frames, duration: Math.max(420, total * 95)};
+        const heading = (a, b) => Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI + 90;
+        const frame = (p, deg, offset) => ({left: pct(p[0]), top: pct(p[1]), transform: `translate(-50%, -50%) rotate(${deg}deg)`, offset});
+        const frames = [];
+        let prev = heading(clean[0], clean[1]);
+        for (let k = 0; k < clean.length - 1; k++) {
+            let h = heading(clean[k], clean[k + 1]);
+            while (h - prev > 180) h -= 360;          // turn the short way round
+            while (h - prev < -180) h += 360;
+            const o0 = lens[k] / total, o1 = lens[k + 1] / total;
+            const turn = Math.min((o1 - o0) * 0.4, 90 / duration);
+            if (k > 0) frames.push(frame(clean[k], prev, o0));
+            frames.push(frame(clean[k], h, k === 0 ? 0 : o0 + turn));
+            prev = h;
+        }
+        frames.push(frame(clean.at(-1), prev, 1));
+        return {frames, duration};
     }
 
-    /** An ant comes out of its block holding it, carries it out and down the hole. */
-    async function fetchBlock(i, colour, dig, mine) {
+    /** Where an element's centre sits, in cells of the mat (may lie off the mat). */
+    function inCells(el) {
+        const box = els.ants.getBoundingClientRect(), r = el.getBoundingClientRect();
+        return [((r.left + r.width / 2 - box.left) / box.width) * N, ((r.top + r.height / 2 - box.top) / box.height) * N];
+    }
+
+    /**
+     * One ant leaves its jar, walks through open space to the cell beside its block,
+     * picks the block up, carries it back out the same way and down the hole.
+     */
+    async function fetchBlock(seatEl, i, colour, dig, mine) {
         if (mine !== gen) return;
         const px = els.board.children[i];
-        // A digger tunnels straight down to the hole; everyone else keeps to open ground.
         // If the screen still has it buried (only after the long safety wait), route by the
         // engine's board, which is never behind: still around blocks, never through them.
         const route = dig ? null : routeFrom(i) || routeFrom(i, s.board.grid.map((v) => v >= 0));
-        const pts = route ? routeCells(i, route) : [[i % N + 0.5, Math.floor(i / N) + 0.5], [N / 2, N + 1.6]];
-        grabbed(i);
+        // Out from the block: through the route, off the mat, round to the hole.
+        const out = route ? routeCells(i, route).slice(1) : [[N / 2, N + 1.6]];
+        const beside = out[0];
+        const jar = inCells(seatEl);
+        // In: from the jar, round the outside, back along the route to beside the block.
+        const into = [jar, ...out.slice(0, -1).reverse()];
+        if (into.length === 1) into.push(beside);
         const ant = document.createElement('div');
-        ant.className = 'walker carrying';
+        ant.className = 'walker';
         ant.dataset.target = i;
         ant.innerHTML = `${ANT(colour)}<i class="block" style="background:${colour}"></i>`;
         els.ants.appendChild(ant);
-        // The block shrinks into the ant's arms as it climbs out.
-        px.animate([{transform: 'scale(1)'}, {transform: 'scale(1.15)', offset: .35}, {transform: 'scale(0)', opacity: 0}], {duration: 220, easing: 'ease-in', fill: 'forwards'})
-            .finished.then(() => { px.classList.add('gone'); px.getAnimations().forEach((x) => x.cancel()); });
-        ant.animate([{opacity: 0, scale: .4}, {opacity: 1, scale: 1}], {duration: 200, easing: 'cubic-bezier(.3, 1.5, .5, 1)', fill: 'backwards'});
-        const walk = along(pts);
-        const anim = ant.animate(walk.frames, {duration: walk.duration, easing: 'linear', fill: 'forwards'});
-        await anim.finished;
-        await ant.animate([{opacity: 1, scale: 1}, {opacity: 0, scale: .2}], {duration: 200, easing: 'ease-in', fill: 'forwards'}).finished;
+        const go = along(into);
+        ant.animate([{opacity: 0}, {opacity: 1}], {duration: 140, fill: 'backwards'});
+        await ant.animate(go.frames, {duration: go.duration, easing: 'linear', fill: 'forwards'}).finished;
+        if (mine !== gen) { ant.remove(); return; }
+        // Pick up: the block slides from its cell onto the ant's back.
+        grabbed(i);
+        const [bx, by] = [i % N + 0.5, Math.floor(i / N) + 0.5];
+        const pull = px.animate([{transform: 'translate(0, 0) scale(1)'}, {transform: `translate(${(beside[0] - bx) * 100}%, ${(beside[1] - by) * 100}%) scale(.45)`, opacity: 0}],
+            {duration: 240, easing: 'cubic-bezier(.4, 0, .6, 1)', fill: 'forwards'});
+        setTimeout(() => ant.classList.add('carrying'), 170);
+        await pull.finished;
+        px.classList.add('gone');
+        px.getAnimations().forEach((x) => x.cancel());
+        if (mine !== gen) { ant.remove(); return; }
+        const home = along(out[0] === beside ? out : [beside, ...out]);
+        await ant.animate(home.frames, {duration: home.duration, easing: 'linear', fill: 'forwards'}).finished;
+        // Down the hole it goes, block and all.
+        await ant.animate([{scale: 1, opacity: 1}, {scale: .3, opacity: 0}], {duration: 180, easing: 'ease-in', fill: 'forwards'}).finished;
         ant.remove();
         if (mine === gen) els.hole.animate([{transform: 'translateX(-50%) scale(1)'}, {transform: 'translateX(-50%) scale(1.12, .9)'}, {transform: 'translateX(-50%) scale(1)'}], {duration: 200});
     }
@@ -521,7 +561,7 @@
                     view.seats[ev.seat].left--;
                     if (count) count.textContent = Math.max(0, view.seats[ev.seat].left);
                 }
-                fetchBlock(i, L.palette[ev.colour], !!ev.dig, mine);
+                fetchBlock(seat, i, L.palette[ev.colour], !!ev.dig, mine);
                 await sleep2(step);
             }
         } else if (ev.t === 'leave') {

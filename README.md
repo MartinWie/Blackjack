@@ -151,9 +151,10 @@ white inside a picture as food, and merges each picture down to a few colours; i
 writes `picnic-pics.js`, which is not edited by hand.
 
 Nests wait in lanes; tapping a lane's front nest fills a jar with that many ants of its
-colour. An ant can take any block that touches the edge or open space, comes out of
-that block carrying it, and walks it out through empty cells, around the outside of
-the mat and down the hole (in mat units, so a layout shift cannot misplace it). Ants
+colour. An ant can take any block that touches the edge or open space: it leaves its
+jar, walks through open space to the cell beside the block, picks it up and carries
+it out through empty cells, around the outside of the mat and down the hole. Paths
+are in mat units, so a layout shift cannot misplace them, and ants turn at corners. Ants
 whose colour is still buried wait in their jar; every jar full of ants that cannot
 reach anything and lunch is over. While every slot still shows a jar, taps wait.
 
@@ -185,6 +186,9 @@ first, narrowing as levels climb). Score targets come from a casual bot that tap
 match at random: they start below what it scores and climb past it. A design the bot cannot finish is
 redesigned; after six tries the level falls back to a plain score level. Moves return
 events with board snapshots, and the page animates snapshot to snapshot.
+
+There is no map: the game opens on the last level played, and Levels lists every
+unlocked level with its stars in a sheet, like the other games.
 
 ## Deploying
 
@@ -219,9 +223,10 @@ Two things a deployment has to get right:
   joining a code that lives on the other node just gets a 404. Sticky sessions do not
   fix it; a shared room registry would, and that is the seam to replace (`RoomRegistry`).
 
-`BUILD_ID` fixes the asset query string at image build time. Left to its default the
-app derives it from the clock, so every restart would rename every asset URL and every
-client would re-download the app for nothing.
+The asset query string (`?v=`) and the service worker's cache name come from
+`BuildInfo.id`: `BJ_BUILD_ID` when set to a real value, otherwise a checksum of the
+running jar, so it changes with every build and stays put across restarts. (Dokploy
+passes no build args; a fixed id kept phones on old scripts.)
 
 Behind a TLS proxy, SSE must not be buffered — `proxy_buffering off` for `/api/` on
 nginx, or the table updates in bursts.

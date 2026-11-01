@@ -817,8 +817,10 @@
                 candidate.goal.score = Math.max(500, Math.round((casual[1] * (0.7 + d * 0.45)) / 100) * 100);
                 if (candidate.type === 'timed') { candidate.time = 60 + Math.floor(d * 30); candidate.moves = 999; }
                 else candidate.moves = turns;
-                const two = Math.max(candidate.goal.score + 500, Math.round((low * 0.75) / 100) * 100);
-                candidate.stars = [candidate.goal.score, two, Math.max(two + 500, Math.round(low / 100) * 100)];
+                // Stars two and three are a step up from the target, not the bot's best, so
+                // the first star sits about halfway along the bar.
+                const two = Math.max(candidate.goal.score + 500, Math.round((candidate.goal.score * 1.4) / 100) * 100);
+                candidate.stars = [candidate.goal.score, two, Math.max(two + 500, Math.round((candidate.goal.score * 1.9) / 100) * 100)];
             } else {
                 const runs = [...Array(BOT_RUNS).keys()].map((r) => botPlay(candidate, candidate.seed + 101 * r));
                 if (runs.some((r) => !r.won)) continue;
@@ -826,7 +828,8 @@
                 const avg = runs.reduce((a, r) => a + r.score, 0) / runs.length;
                 // Generous early: twice what the greedy bot needed, narrowing as levels climb.
                 candidate.moves = Math.max(12, Math.min(60, Math.ceil(most * (2.1 - d * 0.7)) + 3));
-                candidate.stars = [1, Math.round(avg / 100) * 100, Math.round((avg * 1.5) / 100) * 100];
+                // Goal levels: any score finishing the goal is one star; two and three ask a little more.
+                candidate.stars = [1, Math.round((avg * 0.6) / 100) * 100, Math.round((avg * 0.9) / 100) * 100];
             }
             L = candidate;
         }
