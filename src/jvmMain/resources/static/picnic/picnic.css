@@ -9,6 +9,9 @@
     --green: #5DBB63;
     --gold: #F2B544;
     --shadow: 0 6px 18px rgba(75, 58, 47, .14);
+    --line: rgba(52, 36, 26, .85);
+    --outline: 0 2px 0 var(--line), 0 -1.5px 0 var(--line), 1.5px 0 0 var(--line), -1.5px 0 0 var(--line),
+        1.5px 1.5px 0 var(--line), -1.5px 1.5px 0 var(--line), 1.5px -1.5px 0 var(--line), -1.5px -1.5px 0 var(--line);
     color-scheme: light;
 }
 
@@ -64,10 +67,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
    would be measured against the page instead and put the ants off the grid). */
 .board { width: 88%; aspect-ratio: 1; display: grid; grid-template-columns: repeat(26, 1fr); gap: 1px; }
 .ants { position: absolute; left: 6%; top: 6%; width: 88%; height: 88%; z-index: 5; pointer-events: none; }
-.ants .walker { position: absolute; width: 5.5%; height: 5.5%; }
 .px {
-    position: relative; border-radius: 2px; display: grid; place-items: center;
-    box-shadow: inset 0 1.5px 0 rgba(255,255,255,.3), inset 0 -1.5px 0 rgba(0,0,0,.16);
+    position: relative; border-radius: 22%; display: grid; place-items: center;
+    box-shadow: inset 0 1.5px 0 rgba(255,255,255,.4), inset 0 -2px 0 rgba(0,0,0,.22);
     transition: transform .25s, opacity .25s;
 }
 .px .psym { width: 72%; height: 72%; opacity: .85; pointer-events: none; }
@@ -119,7 +121,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
     background: var(--c-dark); box-shadow: inset 0 2px 0 rgba(255,255,255,.25);
 }
 .seat .group .sym { position: absolute; left: 6px; top: 8px; width: 13px; height: 13px; opacity: .85; }
-.seat .group b { font-size: 21px; font-weight: 900; color: var(--ink); margin-top: 4px; text-shadow: 0 1px 0 rgba(0,0,0,.12); }
+.seat .group b { font-size: 21px; font-weight: 900; color: #fff; margin-top: 4px; text-shadow: var(--outline); }
 .seat.pickable .group { box-shadow: 0 0 0 3px #6FA9D6, inset 0 -5px 0 var(--c-dark); animation: pulse 1s ease-in-out infinite; }
 
 .lanes { display: grid; gap: 8px; padding: 0 6px; }
@@ -132,11 +134,10 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
     display: grid; place-items: center;
     transform: translate(-50%, calc(var(--d, 0) * 47px));
     opacity: calc(1 - var(--d, 0) * .18);
-    filter: saturate(calc(1 - var(--d, 0) * .2));
     z-index: calc(10 - var(--d, 0));
-    transition: transform .42s cubic-bezier(.3, 1.35, .5, 1), opacity .42s, filter .42s;
+    transition: transform .42s cubic-bezier(.3, 1.35, .5, 1), opacity .42s;
 }
-.token b { font-size: 20px; font-weight: 900; color: var(--ink); margin-top: -3px; text-shadow: 0 1px 0 rgba(0,0,0,.12); }
+.token b { font-size: 20px; font-weight: 900; color: #fff; margin-top: -3px; text-shadow: var(--outline); }
 .token .sym { position: absolute; left: 6px; top: 5px; width: 12px; height: 12px; opacity: .85; }
 .token.mystery { background: repeating-linear-gradient(45deg, #8C7BC8 0 8px, #8273BD 8px 16px); }
 .token.mystery .q { color: #fff; font-size: 24px; }
@@ -144,7 +145,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 .token.front:active { filter: brightness(.95); }
 .token.off { opacity: .45; cursor: default; }
 .token.sent { pointer-events: none; }
-.token.ghost { position: fixed; z-index: 15; opacity: 1; filter: none; transition: none; }
+.token.ghost { position: fixed; z-index: 15; opacity: 1; transition: none; }
 .more { position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%); font-size: 11px; font-weight: 900; color: rgba(255, 248, 236, .8); }
 .rule-token { width: 40px; height: 36px; border-radius: 10px; background: var(--c); box-shadow: inset 0 -3px 0 var(--c-dark); display: grid; place-items: center; flex: none; }
 .rule-token .sym { width: 18px; height: 18px; }
@@ -155,10 +156,11 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 .toggle.on span::after { transform: translateX(16px); }
 
 .fly { position: fixed; inset: 0; z-index: 12; pointer-events: none; }
-.fly .walker, .fly .ghost { will-change: transform; }
-.walker { position: fixed; left: 0; top: 0; }
-.walker .ant { width: 100%; height: 100%; }
-.walker .legs { animation: legs .14s ease-in-out infinite alternate; transform-origin: 20px 23px; }
+.fly .ghost { will-change: transform; }
+/* Positioned by transform alone (see along()); the legs swing about the thorax. */
+.walker { position: absolute; left: 0; top: 0; will-change: transform; }
+.walker img { position: absolute; inset: 0; width: 100%; height: 100%; }
+.walker .legs { transform-origin: 50% 57.5%; animation: gait .14s ease-in-out infinite alternate; }
 .walker .block { position: absolute; left: 50%; top: -4px; width: 42%; height: 42%; border-radius: 2px; transform: translate(-50%, 0) scale(0); box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .12s cubic-bezier(.3, 1.6, .5, 1); }
 .walker.carrying .block { transform: translate(-50%, 0) scale(1) rotate(-6deg); }
 .px .crumb { position: absolute; left: 30%; top: 30%; width: 40%; height: 40%; border-radius: 2px; }
@@ -188,17 +190,23 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
     .tool:hover::after { opacity: 1; transform: translate(-50%, 0); }
 }
 
-.powerups { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px; }
+.powerups { display: flex; justify-content: center; gap: 18px; margin-top: 2px; padding-bottom: 4px; }
 .power {
-    position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
-    padding: 5px 4px 4px; border-radius: 14px; background: var(--paper); box-shadow: var(--shadow);
-    font-size: 10.5px; font-weight: 900; color: var(--ink-soft); transition: transform .12s;
+    position: relative; width: 56px; height: 56px; padding: 0; border-radius: 50%; display: grid; place-items: center;
+    background: radial-gradient(circle at 50% 35%, #fff, var(--paper) 60%, #F3E6D6);
+    box-shadow: 0 0 0 4px var(--red), 0 4px 0 4px #B8303A, 0 8px 14px 4px rgba(60, 35, 20, .3);
+    transition: transform .12s;
 }
-.power svg { width: 26px; height: 26px; }
-.power:active { transform: scale(.94); }
-.power:disabled { opacity: .38; cursor: default; filter: grayscale(.6); }
-.power b { position: absolute; top: -6px; right: -4px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--red); color: #fff; font-size: 12px; display: grid; place-items: center; box-shadow: 0 2px 0 #B8303A; }
-.power.armed { background: #FFF3C9; box-shadow: 0 0 0 3px var(--gold), var(--shadow); animation: pulse 1.2s ease-in-out infinite; }
+.power svg { width: 32px; height: 32px; }
+.power span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.power:active { transform: translateY(3px) scale(.96); }
+.power:disabled { opacity: .45; cursor: default; filter: grayscale(.6); }
+.power b {
+    position: absolute; right: -8px; bottom: -8px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px;
+    background: var(--gold); color: #fff; font-size: 13px; font-weight: 900; display: grid; place-items: center;
+    box-shadow: 0 2px 0 #C98A1E; text-shadow: 0 1px 0 rgba(120, 70, 10, .5);
+}
+.power.armed { background: #FFF3C9; box-shadow: 0 0 0 4px var(--gold), 0 4px 0 4px #C98A1E, 0 0 0 10px rgba(242, 181, 68, .3); animation: armed 1.2s ease-in-out infinite; }
 .power.bump b { animation: bump .5s cubic-bezier(.3, 1.8, .5, 1); }
 
 .sheet { position: fixed; inset: 0; z-index: 30; display: grid; align-items: end; justify-items: center; background: rgba(75, 58, 47, .35); animation: veil-in .3s ease-out both; }
@@ -235,7 +243,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 /* --- motion ----------------------------------------------------------------- */
 
 @keyframes idle-bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-2px) rotate(3deg); } }
-@keyframes legs { from { transform: rotate(-12deg); } to { transform: rotate(12deg); } }
+@keyframes gait { from { transform: rotate(-12deg); } to { transform: rotate(12deg); } }
 @keyframes march { 0%, 100% { transform: rotate(-6deg) translateY(0); } 50% { transform: rotate(6deg) translateY(-3px); } }
 @keyframes wiggle { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
 @keyframes crumb { from { transform: translate(0, 0); opacity: 1; } to { transform: translate(var(--dx), var(--dy)) scale(.4); opacity: 0; } }
@@ -245,6 +253,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 @keyframes serve { from { transform: scale(.6) rotate(8deg); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes yum { 0% { transform: translate(-50%, -50%) scale(0) rotate(-10deg); opacity: 0; } 20% { transform: translate(-50%, -50%) scale(1.15) rotate(3deg); opacity: 1; } 35%, 80% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(-50%, -80%) scale(.9); opacity: 0; } }
 @keyframes dance { 0% { transform: scale(0); } 15% { transform: scale(1) rotate(-15deg); } 30% { transform: translateY(-10px) rotate(15deg); } 45% { transform: translateY(0) rotate(-15deg); } 60% { transform: translateY(-10px) rotate(15deg); } 85% { transform: rotate(0); opacity: 1; } 100% { transform: scale(0); opacity: 0; } }
+@keyframes armed { 50% { transform: scale(1.06); } }
 @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(242, 181, 68, .35), var(--shadow); } }
 @keyframes bump { 50% { transform: scale(1.6); } }
 @keyframes end-in { from { opacity: 0; } to { opacity: 1; } }
@@ -253,6 +262,18 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 @keyframes slide-down { from { transform: none; } to { transform: translateY(100%); } }
 @keyframes veil-in { from { background: rgba(75, 58, 47, 0); } to { background: rgba(75, 58, 47, .35); } }
 @keyframes veil-out { from { background: rgba(75, 58, 47, .35); } to { background: rgba(75, 58, 47, 0); } }
+
+/* Short phones (iPhone 13 and alike): everything down to the power-ups fits one screen. */
+@media (max-height: 720px) {
+    .wrap { gap: 6px; }
+    .logo svg { width: 36px; height: 36px; }
+    .logo h1 { font-size: 21px; }
+    .level-label strong { font-size: 16px; }
+    .lane { height: 128px; }
+    .token { height: 38px; transform: translate(-50%, calc(var(--d, 0) * 41px)); }
+    .tool { width: 42px; height: 42px; }
+    .power { width: 50px; height: 50px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

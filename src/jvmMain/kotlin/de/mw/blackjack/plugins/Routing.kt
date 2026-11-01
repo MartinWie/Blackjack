@@ -3,6 +3,7 @@ package de.mw.blackjack.plugins
 import de.mw.blackjack.BuildInfo
 
 import de.mw.blackjack.frontend.pages.hubPage
+import de.mw.blackjack.frontend.utils.Apps
 import de.mw.blackjack.frontend.pages.lobbyPage
 import de.mw.blackjack.frontend.pages.meowPage
 import de.mw.blackjack.frontend.pages.picnicPage
@@ -78,7 +79,7 @@ fun Application.configureRouting() {
             // Marbles answers its own 404s (a gone game has a page of its own).
             val uri = call.request.local.uri
             val marbles = uri == "/marbles" || uri.startsWith("/marbles/") || uri.startsWith("/marbles?")
-            if (!uri.startsWith("/api/") && !marbles) call.respondRedirect("/")
+            if (!uri.startsWith("/api/") && !uri.startsWith("/manifest/") && !marbles) call.respondRedirect("/")
         }
     }
 
@@ -118,6 +119,13 @@ fun Application.configureRouting() {
         }
 
         get("/games") { call.respondText(hubPage(), ContentType.Text.Html) }
+
+        // One manifest per app, so each game installs as its own home-screen app.
+        get("/manifest/{app}.webmanifest") {
+            val app = Apps.byKey(call.parameters["app"].orEmpty())
+            if (app == null) call.respond(HttpStatusCode.NotFound)
+            else call.respondText(app.manifest(call.request.host()), ContentType.parse("application/manifest+json"))
+        }
 
         get("/meow") { call.respondText(meowPage(), ContentType.Text.Html) }
 

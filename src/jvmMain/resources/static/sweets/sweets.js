@@ -241,12 +241,15 @@
         });
     }
 
+    let shownSnap = null;
+
     const x = (i) => (i % L.w) * cell;
     const y = (i) => Math.floor(i / L.w) * cell;
     const place = (el, px, py) => { el.style.transform = `translate(${px}px, ${py}px)`; };
 
     /** Moves the board to a snapshot: tiles found by id slide, new ones appear, gone ones pop. */
     function render(snap, opt = {}) {
+        shownSnap = snap;
         const seen = new Set();
         const spawn = new Map((opt.spawned || []).map((s) => [s.id, s]));
         let longest = 0;
@@ -294,11 +297,16 @@
             // A candy that fell lands with a little squash.
             if (opt.fall && dist >= 0.5) setTimeout(() => bounce(el, 'land'), ms - 20);
         });
-        for (const [id, el] of tiles) {
-            if (seen.has(id)) continue;
+        const gone = [...tiles.keys()].filter((id) => !seen.has(id));
+        // About 40 crumbs per clear however big: a cleared board would otherwise be hundreds of layers.
+        const each = gone.length ? 40 / gone.length : 0;
+        let owed = 0;
+        for (const id of gone) {
+            const el = tiles.get(id);
             tiles.delete(id);
-            el.classList.remove('special-glow', 'pick', 'hint', 'land', 'nudge');
-            if (opt.clear) crumbs(el);
+            el.classList.remove('special-glow', 'pick', 'hint', 'land', 'nudge', 'born', 'lift', 'nope');
+            owed += Math.min(5, each);
+            if (opt.clear && owed >= 1) { crumbs(el, Math.floor(owed)); owed -= Math.floor(owed); }
             el.classList.add('pop');
             setTimeout(() => el.remove(), 300);
         }
@@ -378,18 +386,6 @@
         return el;
     }
 
-    /** Sparkles flying out of a cell's centre. */
-    function sparkle(i, count = 8, spread = 1) {
-        const colours = ['#FFE27A', '#FF8DC8', '#9B7BFF', '#7FE0A0', '#fff'];
-        for (let k = 0; k < count; k++) {
-            const a = (k / count) * Math.PI * 2 + Math.random() * .4, d = cell * (0.6 + Math.random() * 0.6) * spread;
-            const s = fxAt('spark', x(i) + cell / 2 - 5, y(i) + cell / 2 - 5, 10, 10);
-            s.style.background = colours[k % colours.length];
-            s.style.setProperty('--dx', `${Math.cos(a) * d}px`);
-            s.style.setProperty('--dy', `${Math.sin(a) * d}px`);
-        }
-    }
-
     // --- booster moments ----------------------------------------------------------
     //
     // Loud on purpose: a booster is a treat, so it gets the whole screen.
@@ -397,6 +393,16 @@
     const SHARD_COLOURS = ['#F0435A', '#FF9A2E', '#FFCF33', '#4CC86A', '#3FA9F5', '#9B5DE5', '#FF8DC8', '#fff'];
 
     const centre = (i) => [x(i) + cell / 2, y(i) + cell / 2];
+
+    /** Paints an effect in the colour of the candy at cell i (pink for a colour bomb). */
+    function tint(el, i) {
+        const t = shownSnap && shownSnap.cells[i] && shownSnap.cells[i].tile;
+        const k = t && t.kind === 'candy' && t.color >= 0 ? t.color : -1;
+        el.style.setProperty('--c', k >= 0 ? COLOURS[k] : '#FF5FAE');
+        el.style.setProperty('--c-dark', k >= 0 ? DARK[k] : '#C93A86');
+        el.style.setProperty('--c-light', k >= 0 ? LIGHT[k] : '#FFC2E2');
+        return el;
+    }
 
     /** Shakes the whole play screen; strength s, m or l. */
     function shake(strength) {
@@ -432,6 +438,7 @@
     function shockwave(px, py, size, delay = 0) {
         const w = fxAt('shock', px - size / 2, py - size / 2, size, size);
         w.style.animationDelay = `${delay}ms`;
+        return w;
     }
 
     /** Sparkles flying out of a cell's centre. */
@@ -547,28 +554,36 @@
         for (const f of fx) {
             const [cx, cy] = centre(f.i);
             if (f.kind === 'line') {
+                // The beam shoots out both ways from the striped candy itself.
                 const thick = f.wide ? cell * 3 : cell * 0.9;
-                if (f.dir === 'h') fxAt('beam', -cell, cy - thick / 2, (L.w + 2) * cell, thick);
-                else fxAt('beam v', cx - thick / 2, -cell, thick, (L.h + 2) * cell);
+                const beam = f.dir === 'h'
+                    ? fxAt('beam', -cell, cy - thick / 2, (L.w + 2) * cell, thick)
+                    : fxAt('beam v', cx - thick / 2, -cell, thick, (L.h + 2) * cell);
+                beam.style.transformOrigin = f.dir === 'h' ? `${cx + cell}px 50%` : `50% ${cy + cell}px`;
+                tint(beam, f.i);
                 sparkle(f.i, 10, 1.5);
             } else if (f.kind === 'blast') {
                 const r = ((f.r || 0) * 2 + 1) * cell;
-                shockwave(cx, cy, r * 1.6);
-                fxAt('ring', cx - r / 2, cy - r / 2, r, r);
+                tint(shockwave(cx, cy, r * 1.6), f.i);
+                tint(fxAt('ring', cx - r / 2, cy - r / 2, r, r), f.i);
                 shards(cx, cy, 14 + (f.r || 0) * 10, 1.5 + (f.r || 0));
             } else if (f.kind === 'smash') {
                 fxAt('ring', cx - cell / 2, cy - cell / 2, cell, cell);
             } else if (f.kind === 'bomb') {
-                // Lightning from the bomb to everything it takes.
-                (f.targets || []).slice(0, 45).forEach((k, n) => {
+                // Lightning from the bomb to what it takes, each bolt in its target's colour.
+                // At most 24 bolts; every target still gets its zap.
+                const targets = (f.targets || []).slice(0, 45);
+                const every = Math.max(1, Math.ceil(targets.length / 24));
+                targets.forEach((k, n) => {
                     const [tx, ty] = centre(k);
                     const dx = tx - cx, dy = ty - cy, len = Math.hypot(dx, dy);
-                    if (len > 1) {
-                        const bolt = fxAt('bolt', cx, cy - 4, len, 8);
-                        bolt.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+                    if (len > 1 && n % every === 0) {
+                        const bolt = tint(fxAt('bolt', cx, cy - 4, len, 8), k);
+                        bolt.style.rotate = `${Math.atan2(dy, dx)}rad`;
                         bolt.style.animationDelay = `${n * 14}ms`;
                     }
-                    fxAt('zap', x(k) - cell * 0.25, y(k) - cell * 0.25, cell * 1.5, cell * 1.5).style.animationDelay = `${n * 14 + 90}ms`;
+                    const zap = tint(fxAt('zap', x(k) - cell * 0.25, y(k) - cell * 0.25, cell * 1.5, cell * 1.5), k);
+                    zap.style.animationDelay = `${n * 14 + 90}ms`;
                 });
                 comic('ZAP!', cx, cy - cell * 0.8, '#3FA9F5');
             }
@@ -591,12 +606,12 @@
     }
 
     /** A popped candy breaks into soft crumbs of its own colour. */
-    function crumbs(el) {
+    function crumbs(el, count) {
         const m = el.style.transform.match(/-?[\d.]+/g);
         if (!m) return;
         const cx = Number(m[0]) + cell / 2, cy = Number(m[1]) + cell / 2;
-        for (let k = 0; k < 5; k++) {
-            const a = (k / 5) * Math.PI * 2 + Math.random(), d = cell * (0.35 + Math.random() * 0.4);
+        for (let k = 0; k < count; k++) {
+            const a = (k / count) * Math.PI * 2 + Math.random(), d = cell * (0.35 + Math.random() * 0.4);
             const c = fxAt('crumb', cx - 4, cy - 4, 8, 8);
             c.style.background = el.dataset.colour;
             c.style.setProperty('--dx', `${Math.cos(a) * d}px`);

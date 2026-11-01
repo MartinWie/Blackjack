@@ -1,6 +1,8 @@
 package de.mw.blackjack.frontend.pages
 
 import de.mw.blackjack.BuildInfo.asset
+import de.mw.blackjack.frontend.utils.Apps
+import de.mw.blackjack.frontend.utils.installable
 import kotlinx.html.*
 import kotlinx.html.stream.appendHTML
 
@@ -33,9 +35,8 @@ fun picnicPage(): String = buildString {
             meta(name = "theme-color", content = "#F4EFE3")
             meta(name = "apple-mobile-web-app-capable", content = "yes")
             title("Ant Picnic")
-            link(rel = "manifest", href = "/static/manifest.webmanifest")
             link(rel = "icon", href = asset("/static/img/games/picnic-192.png"), type = "image/png")
-            link(rel = "apple-touch-icon", href = asset("/static/img/games/hub-180.png"))
+            installable(Apps.picnic)
             link(rel = "stylesheet", href = asset("/static/picnic/picnic.css"))
             script(src = asset("/static/picnic/picnic-pics.js")) { defer = true }
             script(src = asset("/static/picnic/picnic-engine.js")) { defer = true }

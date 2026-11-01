@@ -1,11 +1,12 @@
 package de.mw.blackjack.frontend.pages
 
 import de.mw.blackjack.BuildInfo.asset
+import de.mw.blackjack.frontend.utils.Apps
 import de.mw.blackjack.frontend.utils.page
 import kotlinx.html.*
 
 /** Served from the service worker cache when a navigation fails. */
-fun offlinePage(): String = page(pageTitle = "Games · offline") {
+fun offlinePage(): String = page(pageTitle = "Games · offline", app = Apps.hub) {
     div(classes = "flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-8 text-center") {
         img(alt = "", src = asset("/static/img/icon-192.png"), classes = "h-20 w-20 rounded-lg opacity-70 shadow-lg")
         h1(classes = "font-display text-3xl font-black text-gold") { +"No signal" }

@@ -18,16 +18,19 @@
     update();
 })();
 
-// Direct links. On the live site a game with its own subdomain links there
-// (meow.7mw.de); elsewhere, and for games without one, the launcher path is the link.
+// Direct links. On the live site each game links to its own subdomain (meow.7mw.de);
+// elsewhere (localhost) the launcher path is the link.
 (function () {
     const toast = document.querySelector('.share-toast');
     let hide = null;
 
     function linkFor(button) {
         const sub = button.dataset.subdomain;
-        const labels = location.hostname.split('.');
-        if (sub && labels.length >= 3) return `${location.protocol}//${sub}.${labels.slice(1).join('.')}`;
+        const host = location.hostname;
+        const labels = host.split('.');
+        // A LAN address (the phone-testing setup) has no subdomains: use the path.
+        const named = labels.length >= 3 && !/^[\d.]+$/.test(host) && !host.includes(':');
+        if (sub && named) return `${location.protocol}//${sub}.${labels.slice(1).join('.')}${location.port ? `:${location.port}` : ''}`;
         return location.origin + button.dataset.path;
     }
 
@@ -37,6 +40,11 @@
         clearTimeout(hide);
         hide = setTimeout(() => { toast.style.opacity = '0'; }, 2200);
     }
+
+    // Each game installs from its own origin, so its install button opens it there.
+    document.querySelectorAll('.install-link').forEach((link) => {
+        link.href = `${linkFor(link)}#install`;
+    });
 
     document.querySelectorAll('.share-link').forEach((button) => {
         button.addEventListener('click', async () => {

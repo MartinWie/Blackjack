@@ -26,8 +26,9 @@ needs to know.
 - **One lock per table.** Every mutation goes through `Room.change {}`, which bumps
   the version the sweep broadcasts on. State read outside the lock is a snapshot.
 - **Offline matters.** No CDN, ever: anime.js and the engine are vendored. New assets
-  belong in the service worker's `SHELL` list and want a `VERSION` bump in
-  `static/sw.js`. A new page that must work offline has to be precached there too —
+  belong in the service worker's `SHELL` list in `static/sw.js`; its `VERSION` is
+  replaced with the build id when served, so every deploy refreshes the cache. A new
+  page that must work offline has to be precached there too —
   `/solo` is, which is what makes a plane work.
 - Port is 8090 (huus 8080, feedbackr 8081).
 - **`/` depends on the Host.** `blackjack.*` serves the lobby there, so a link back

@@ -1,6 +1,8 @@
 package de.mw.marbles
 
 import de.mw.blackjack.BuildInfo.asset
+import de.mw.blackjack.frontend.utils.Apps
+import de.mw.blackjack.frontend.utils.installable
 import kotlinx.html.*
 
 /**
@@ -256,12 +258,10 @@ internal fun HTML.basePage(
 
         // Favicon and app icons
         link(rel = "icon", href = "/static/img/games/marbles-192.png", type = "image/png")
-        link(rel = "apple-touch-icon", href = "/static/img/games/hub-180.png")
-        link(rel = "manifest", href = "/static/manifest.webmanifest")
+        installable(Apps.marbles)
         meta(name = "theme-color", content = "#4a90d9")
         meta(name = "apple-mobile-web-app-capable", content = "yes")
         meta(name = "apple-mobile-web-app-status-bar-style", content = "black-translucent")
-        meta(name = "apple-mobile-web-app-title", content = "game.title".t(lang))
 
         if (includeHtmx) {
             script(src = asset("/static/marbles/htmx.min.js")) {}

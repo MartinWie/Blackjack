@@ -46,7 +46,7 @@ const SHELL = [
     '/static/img/games/sweets-192.png',
     '/static/img/games/picnic-192.png',
     '/static/img/games/marbles-192.png',
-    '/static/manifest.webmanifest',
+    '/static/install.js',
 ];
 
 self.addEventListener('install', (event) => {

@@ -17,6 +17,8 @@ fun page(
     bodyClasses: String = "min-h-[100dvh] bg-felt text-chalk",
     scripts: List<String> = emptyList(),
     favicon: String = "/static/img/favicon-32.png",
+    app: App = Apps.blackjack,
+    askToInstall: Boolean = false,
     content: BODY.() -> Unit,
 ): String = buildString {
     append("<!DOCTYPE html>")
@@ -30,9 +32,8 @@ fun page(
             meta(name = "apple-mobile-web-app-capable", content = "yes")
             meta(name = "apple-mobile-web-app-status-bar-style", content = "black-translucent")
             title(pageTitle)
-            link(rel = "manifest", href = "/static/manifest.webmanifest")
             link(rel = "icon", href = asset(favicon), type = "image/png")
-            link(rel = "apple-touch-icon", href = asset("/static/img/games/hub-180.png"))
+            installable(app, askToInstall)
             link(rel = "stylesheet", href = asset("/static/output.css"))
             // The table rules, once, from the one place that defines them — the
             // client must never carry its own copy of a bet size or a payout.

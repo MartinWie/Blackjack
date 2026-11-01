@@ -14,8 +14,14 @@ The same server hosts two more games behind a launcher at `/`:
 | `/picnic` | Ant Picnic, ants eating pixel-art food | offline |
 | `/marbles` | Marbles, realtime multiplayer odd/even (ported from `MarbleGame`) | online |
 
-`/` follows the subdomain: `blackjack.*` opens the lobby, `meow.*` and `sweets.*` their game,
-`marbles.*` redirects to `/marbles`, anything else (`games.7mw.de`) gets the launcher.
+`/` follows the subdomain: `blackjack.*` opens the lobby, `meow.*`, `sweets.*` and `picnic.*`
+their game, `marbles.*` redirects to `/marbles`, anything else (`games.7mw.de`) gets the launcher.
+
+Each game installs to the home screen as its own app: a browser installs one app per origin,
+so every game has a subdomain and a manifest at `/manifest/{app}.webmanifest` (`Apps.kt`).
+`static/install.js` is the offer, modelled on Huus: the launcher asks once, on a visit on a
+later day; its Install button and each card's install link open the sheet on demand (a card
+links to `<game>.7mw.de/#install`).
 
 ```bash
 bash start.sh              # builds Tailwind + the JS engine + jar, runs on :8090

@@ -23,10 +23,11 @@
     }
 
     // The ant wears exactly its pixel colour; its outline and legs are that colour, darker.
-    const ANT = (c) => {
+    const LEGS = (l) => `<g stroke="${l}" stroke-width="2.4" stroke-linecap="round" fill="none"><path d="M14 19 7 14M14 23H6M15 27l-7 5M26 19l7-5M26 23h8M25 27l7 5"/></g>`;
+    const ANT = (c, legs = true) => {
         const o = shade(c, -0.45), l = shade(c, -0.55);
-        return `<svg class="ant" viewBox="0 0 40 40" aria-hidden="true">`
-            + `<g class="legs" stroke="${l}" stroke-width="2.4" stroke-linecap="round" fill="none"><path d="M14 19 7 14M14 23H6M15 27l-7 5M26 19l7-5M26 23h8M25 27l7 5"/></g>`
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" aria-hidden="true">`
+            + (legs ? LEGS(l) : '')
             + `<g stroke="${l}" stroke-width="2" stroke-linecap="round" fill="none"><path d="M17 7 13 2.5M23 7l4-4.5"/></g>`
             + `<circle cx="13" cy="2.8" r="1.9" fill="${c}" stroke="${o}" stroke-width="1"/><circle cx="27" cy="2.8" r="1.9" fill="${c}" stroke="${o}" stroke-width="1"/>`
             + `<ellipse cx="20" cy="31" rx="7.5" ry="7" fill="${c}" stroke="${o}" stroke-width="1.6"/>`
@@ -36,6 +37,19 @@
             + `<circle cx="17.7" cy="10.7" r="1.2" fill="#2B2B33"/><circle cx="23.1" cy="10.7" r="1.2" fill="#2B2B33"/>`
             + `<ellipse cx="17" cy="28.5" rx="2.6" ry="1.7" fill="#fff" opacity=".5"/></svg>`;
     };
+
+    // A walking ant is two cached images, legs and body; the legs swing by transform, so
+    // walking never repaints.
+    const sprites = new Map();
+    function walkerArt(c) {
+        if (!sprites.has(c)) {
+            const url = (svg) => `data:image/svg+xml,${encodeURIComponent(svg)}`;
+            const l = shade(c, -0.55);
+            const legs = url(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">${LEGS(l)}</svg>`);
+            sprites.set(c, `<img class="legs" src="${legs}" alt=""><img src="${url(ANT(c, false))}" alt="">`);
+        }
+        return sprites.get(c);
+    }
 
     // One symbol per colour, so the game never relies on telling colours apart
     // (red-green colour blindness above all). Shown on nests and jars always, and on
@@ -81,12 +95,11 @@
         t.style.setProperty('--c', c);
         t.style.setProperty('--c-dark', shade(c, -0.35));
         t.style.setProperty('--c-light', shade(c, 0.3));
-        t.style.setProperty('--ink', hidden ? '#fff' : ink(c));
         t.dataset.look = hidden ? 'mystery' : `${nest.colour}${store.symbols ? '+' : ''}`;
         t.innerHTML = hidden ? '<b class="q">?</b>' : `${store.symbols ? symbol(nest.colour, c) : ''}<b>${nest.count}</b>`;
     }
 
-    /** A jar on the shelf, in its group's colour, the ant peeking over the rim. */
+    /** A jar on the shelf, in its group's colour. */
     function jar(g) {
         const c = L.palette[g.colour];
         const el = document.createElement('div');
@@ -95,7 +108,6 @@
         el.style.setProperty('--c', c);
         el.style.setProperty('--c-dark', shade(c, -0.35));
         el.style.setProperty('--c-light', shade(c, 0.3));
-        el.style.setProperty('--ink', ink(c));
         el.innerHTML = `${store.symbols ? symbol(g.colour, c) : ''}<b>${g.left}</b>`;
         return el;
     }
@@ -362,7 +374,6 @@
     // Web Animations rather than class toggles, so every motion can follow a curve and
     // the code knows when it ends.
 
-    const centre = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
     const sleep2 = (ms) => new Promise((done) => setTimeout(done, ms));
 
 
@@ -370,8 +381,8 @@
     //
     // An ant comes out of the very block it picks up and carries it away through open
     // space only: along empty cells to the edge of the picture, around the outside of the
-    // mat and down the hole. Positions are in cells of the mat, not screen pixels, so a
-    // layout shift mid-walk cannot send an ant to the wrong place. `shown` is which
+    // mat and down the hole. Routes are planned in cells of the mat and turned into
+    // pixels only when a walk starts, from the mat's size at that moment. `shown` is which
     // pixels are still on screen, since the engine runs ahead of the screen.
 
     let shown = [];
@@ -382,16 +393,16 @@
     }
 
     const onEdge = (k) => k % N === 0 || k % N === N - 1 || k < N || k >= N * (N - 1);
+    const step = (k) => {
+        const x = k % N;
+        return [k + N, k - 1, k + 1, k - N].filter((j) => j >= 0 && j < N * N && !(j === k - 1 && x === 0) && !(j === k + 1 && x === N - 1));
+    };
 
     /** Empty cells from pixel i out to the edge of the picture ([] on the edge), or null. */
     function routeFrom(i, blocked = shown) {
         if (onEdge(i)) return [];
         const prev = new Int32Array(N * N).fill(-2);
         const queue = [];
-        const step = (k) => {
-            const x = k % N;
-            return [k + N, k - 1, k + 1, k - N].filter((j) => j >= 0 && j < N * N && !(j === k - 1 && x === 0) && !(j === k + 1 && x === N - 1));
-        };
         for (const j of step(i)) if (!blocked[j]) { prev[j] = -1; queue.push(j); }
         for (let q = 0; q < queue.length; q++) {
             const k = queue[q];
@@ -407,6 +418,15 @@
 
     const visiblyExposed = (i) => routeFrom(i) !== null;
 
+    /** Empty cells joined to the edge of the picture on screen, found in one flood. */
+    function openAir() {
+        const air = new Uint8Array(N * N);
+        const queue = [];
+        for (let k = 0; k < N * N; k++) if (onEdge(k) && !shown[k]) { air[k] = 1; queue.push(k); }
+        for (let q = 0; q < queue.length; q++) for (const j of step(queue[q])) if (!air[j] && !shown[j]) { air[j] = 1; queue.push(j); }
+        return air;
+    }
+
     /** Resolves once pixel i can be reached on screen (or after a safety timeout). */
     function waitExposed(i, mine) {
         if (visiblyExposed(i)) return Promise.resolve();
@@ -421,7 +441,9 @@
 
     function grabbed(i) {
         shown[i] = false;
-        const ready = waiters.filter((w) => w.mine !== gen || visiblyExposed(w.i));
+        if (!waiters.length) return;
+        const air = openAir();
+        const ready = waiters.filter((w) => w.mine !== gen || onEdge(w.i) || step(w.i).some((j) => air[j]));
         waiters = waiters.filter((w) => !ready.includes(w));
         ready.forEach((w) => w.resolve());
     }
@@ -444,6 +466,8 @@
         return pts;
     }
 
+    const ANT_SIZE = 5.5;          // % of the mat
+
     /**
      * Keyframes along a path of cell points at an even walking pace. The ant keeps its
      * heading along each straight stretch and turns briskly at the corner, rather than
@@ -456,10 +480,9 @@
         for (let k = 1; k < clean.length; k++) lens.push(lens[k - 1] + Math.hypot(clean[k][0] - clean[k - 1][0], clean[k][1] - clean[k - 1][1]));
         const total = lens.at(-1) || 1;
         const duration = Math.max(300, total * 62);
-        const pct = (v) => `${(v / N) * 100}%`;
         const heading = (a, b) => Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI + 90;
-        const frame = (p, deg, offset) => ({left: pct(p[0]), top: pct(p[1]), transform: `translate(-50%, -50%) rotate(${deg}deg)`, offset});
-        const frames = [];
+        // Knots: [offset, x, y, degrees].
+        const knots = [];
         let prev = heading(clean[0], clean[1]);
         for (let k = 0; k < clean.length - 1; k++) {
             let h = heading(clean[k], clean[k + 1]);
@@ -467,11 +490,15 @@
             while (h - prev < -180) h += 360;
             const o0 = lens[k] / total, o1 = lens[k + 1] / total;
             const turn = Math.min((o1 - o0) * 0.4, 90 / duration);
-            if (k > 0) frames.push(frame(clean[k], prev, o0));
-            frames.push(frame(clean[k], h, k === 0 ? 0 : o0 + turn));
+            if (k > 0) knots.push([o0, ...clean[k], prev]);
+            knots.push([k === 0 ? 0 : o0 + turn, ...clean[k], h]);
             prev = h;
         }
-        frames.push(frame(clean.at(-1), prev, 1));
+        knots.push([1, ...clean.at(-1), prev]);
+        // Pixels, not percentages: Chrome runs only pixel translates on the compositor.
+        const side = els.ants.clientWidth, half = (side * ANT_SIZE) / 200;
+        const px = (v) => ((v / N) * side - half).toFixed(1);
+        const frames = knots.map(([o, x, y, h]) => ({transform: `translate(${px(x)}px, ${px(y)}px) rotate(${h.toFixed(1)}deg)`, offset: o}));
         return {frames, duration};
     }
 
@@ -482,10 +509,22 @@
     }
 
     /**
+     * Plays a walk and leaves the ant where it ended as plain style. A finished animation
+     * kept alive by `fill` would sit under the next one, and two transform animations on
+     * one element keep Chrome from running either on the compositor.
+     */
+    async function walk(ant, path) {
+        const a = ant.animate(path.frames, {duration: path.duration, easing: 'linear', fill: 'forwards'});
+        await a.finished;
+        ant.style.transform = path.frames.at(-1).transform;
+        a.cancel();
+    }
+
+    /**
      * One ant leaves its jar, walks through open space to the cell beside its block,
      * picks the block up, carries it back out the same way and down the hole.
      */
-    async function fetchBlock(seatEl, i, colour, dig, mine) {
+    async function fetchBlock(jar, i, colour, dig, mine) {
         if (mine !== gen) return;
         const px = els.board.children[i];
         // If the screen still has it buried (only after the long safety wait), route by the
@@ -494,23 +533,24 @@
         // Out from the block: through the route, off the mat, round to the hole.
         const out = route ? routeCells(i, route).slice(1) : [[N / 2, N + 1.6]];
         const beside = out[0];
-        const jar = inCells(seatEl);
-        // In: from the jar, round the outside, back along the route to beside the block.
-        const into = [jar, ...out.slice(0, -1).reverse()];
-        if (into.length === 1) into.push(beside);
+        // In: straight up out of the jar, round the outside, back along the route to
+        // beside the block.
+        const into = [jar, [jar[0], N + 1.6], ...out.slice(0, -1).reverse()];
+        if (!route) into.push(beside);
         const ant = document.createElement('div');
         ant.className = 'walker';
         ant.dataset.target = i;
-        ant.innerHTML = `${ANT(colour)}<i class="block" style="background:${colour}"></i>`;
+        ant.style.width = ant.style.height = `${ANT_SIZE}%`;
+        ant.innerHTML = `${walkerArt(colour)}<i class="block" style="background:${colour}"></i>`;
         els.ants.appendChild(ant);
         const go = along(into);
         ant.animate([{opacity: 0}, {opacity: 1}], {duration: 140, fill: 'backwards'});
-        await ant.animate(go.frames, {duration: go.duration, easing: 'linear', fill: 'forwards'}).finished;
+        await walk(ant, go);
         if (mine !== gen) { ant.remove(); return; }
         // Pick up: the block slides from its cell onto the ant's back.
         grabbed(i);
-        const [bx, by] = [i % N + 0.5, Math.floor(i / N) + 0.5];
-        const pull = px.animate([{transform: 'translate(0, 0) scale(1)'}, {transform: `translate(${(beside[0] - bx) * 100}%, ${(beside[1] - by) * 100}%) scale(.45)`, opacity: 0}],
+        const [bx, by] = [i % N + 0.5, Math.floor(i / N) + 0.5], cell = els.ants.clientWidth / N;
+        const pull = px.animate([{transform: 'translate(0, 0) scale(1)'}, {transform: `translate(${(beside[0] - bx) * cell}px, ${(beside[1] - by) * cell}px) scale(.45)`, opacity: 0}],
             {duration: 240, easing: 'cubic-bezier(.4, 0, .6, 1)', fill: 'forwards'});
         setTimeout(() => ant.classList.add('carrying'), 170);
         await pull.finished;
@@ -518,11 +558,14 @@
         px.getAnimations().forEach((x) => x.cancel());
         if (mine !== gen) { ant.remove(); return; }
         const home = along(out[0] === beside ? out : [beside, ...out]);
-        await ant.animate(home.frames, {duration: home.duration, easing: 'linear', fill: 'forwards'}).finished;
+        await walk(ant, home);
         // Down the hole it goes, block and all.
         await ant.animate([{scale: 1, opacity: 1}, {scale: .3, opacity: 0}], {duration: 180, easing: 'ease-in', fill: 'forwards'}).finished;
         ant.remove();
-        if (mine === gen) els.hole.animate([{transform: 'translateX(-50%) scale(1)'}, {transform: 'translateX(-50%) scale(1.12, .9)'}, {transform: 'translateX(-50%) scale(1)'}], {duration: 200});
+        if (mine !== gen) return;
+        // One bump at a time: overlapping ones would keep each other off the compositor.
+        els.hole.getAnimations().forEach((x) => x.cancel());
+        els.hole.animate([{transform: 'translateX(-50%) scale(1)'}, {transform: 'translateX(-50%) scale(1.12, .9)'}, {transform: 'translateX(-50%) scale(1)'}], {duration: 200});
     }
 
     /** The tapped tile glides from its lane into the jar's slot and becomes the jar. */
@@ -551,7 +594,8 @@
             if (g) g.animate([{transform: 'scale(.92)'}, {transform: 'scale(1.06)', offset: .55}, {transform: 'scale(1)'}], {duration: 260, easing: 'ease-out'});
         } else if (ev.t === 'eat') {
             const count = seat.querySelector('.group b');
-            const step = Math.max(70, Math.min(130, 1300 / ev.cells.length));
+            const gap = Math.max(70, Math.min(130, 1300 / ev.cells.length));
+            const jarAt = inCells(seat);
             // One ant at a time, each only once its block is exposed on screen; the
             // jar can go as soon as the last has set off, while ants walk home.
             for (const i of ev.cells) {
@@ -561,8 +605,8 @@
                     view.seats[ev.seat].left--;
                     if (count) count.textContent = Math.max(0, view.seats[ev.seat].left);
                 }
-                fetchBlock(seat, i, L.palette[ev.colour], !!ev.dig, mine);
-                await sleep2(step);
+                fetchBlock(jarAt, i, L.palette[ev.colour], !!ev.dig, mine);
+                await sleep2(gap);
             }
         } else if (ev.t === 'leave') {
             const g = seat.querySelector('.group');
