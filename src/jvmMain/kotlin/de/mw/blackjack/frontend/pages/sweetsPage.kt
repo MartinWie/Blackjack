@@ -74,10 +74,6 @@ fun sweetsPage(): String = buildString {
                     div(classes = "fx") { id = "fx" }
                     div(classes = "banner") { id = "banner" }
                 }
-                div(classes = "sugar") {
-                    span { +"Sugar rush" }
-                    div(classes = "meter") { id = "sugar-meter"; i { id = "sugar-fill" } }
-                }
                 div(classes = "toolbar") {
                     toolButton("map-btn", "Map", ICON_LEVELS)
                     toolButton("restart-btn", "Restart", ICON_RESTART)

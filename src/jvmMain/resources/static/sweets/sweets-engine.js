@@ -12,7 +12,6 @@
 (function (root) {
     'use strict';
 
-    const SUGAR_MAX = 45;
     const BONUS_MAX = 12;
     // Run 0 plays the player's own seed, so the opening they see has been won from.
     const BOT_RUNS = 3;
@@ -406,16 +405,6 @@
         return boom;
     }
 
-    function sugarRush(s, ctx) {
-        s.sugar += ctx.candies;
-        if (s.sugar < SUGAR_MAX) return;
-        s.sugar -= SUGAR_MAX;
-        const plain = s.cells.flatMap((c, i) => (isPlain(c.tile) && !c.lock && !c.tile.timer ? [i] : []));
-        if (!plain.length) return;
-        const i = s.rng.pick(plain);
-        s.cells[i].tile.special = s.rng.next() < 0.5 ? 'wrap' : (s.rng.next() < 0.5 ? 'h' : 'v');
-        emit(s, ctx, {t: 'sugar', i});
-    }
 
     /**
      * Reshuffles a board with no move left. If no arrangement works, the board goes
@@ -463,7 +452,6 @@
     function finishMove(s, ctx) {
         spreadChocolate(s, ctx);
         const boom = tickBombs(s, ctx);
-        sugarRush(s, ctx);
         if (goalMet(s)) { s.over = 'won'; return; }
         if (boom) { s.over = 'lost'; s.reason = 'bomb'; return; }
         if (s.level.type !== 'timed' && s.moves <= 0) { s.over = 'lost'; s.reason = 'moves'; return; }
@@ -792,13 +780,17 @@
         return best;
     }
 
-    /** Plays a level once; returns moves used (or null) and the score reached. */
-    function botPlay(L, seed, fixedMoves) {
+    /**
+     * Plays a level once; returns moves used (or null) and the score reached. The
+     * greedy bot proves a level can be won; the casual one, which taps any match it
+     * sees, is how targets are set, since nobody plays like the greedy one.
+     */
+    function botPlay(L, seed, fixedMoves, casual = false) {
         const s = start({...L, moves: fixedMoves || BOT_CAP}, seed);
         const rng = new Rng(seed ^ 0x9E3779B9);
         while (!s.over) {
             if (fixedMoves && s.movesUsed >= fixedMoves) break;
-            const m = botMove(s, rng);
+            const m = casual ? rng.pick(validMoves(s)) : botMove(s, rng);
             if (!m) break;
             swap(s, m[0], m[1], true);
         }
@@ -819,18 +811,21 @@
                 const runs = [...Array(BOT_RUNS).keys()].map((r) => botPlay(candidate, candidate.seed + 101 * r, turns));
                 if (runs.some((r) => !r.won && r.moves < turns && candidate.bombTimer)) continue;
                 const low = Math.min(...runs.map((r) => r.score));
-                const avg = runs.reduce((a, r) => a + r.score, 0) / runs.length;
-                // Early levels leave a wide margin under the bot; later ones less.
-                candidate.goal.score = Math.round((low * (0.65 + d * 0.2)) / 100) * 100;
+                const casual = [...Array(BOT_RUNS).keys()].map((r) => botPlay(candidate, candidate.seed + 77 * r, turns, true).score).sort((a, b) => a - b);
+                // The target sits below what a casual tapper scores at first and climbs
+                // past it as levels go on; stars two and three ask for real play.
+                candidate.goal.score = Math.max(500, Math.round((casual[1] * (0.7 + d * 0.45)) / 100) * 100);
                 if (candidate.type === 'timed') { candidate.time = 60 + Math.floor(d * 30); candidate.moves = 999; }
                 else candidate.moves = turns;
-                candidate.stars = [candidate.goal.score, Math.round(avg / 100) * 100, Math.round((avg * 1.4) / 100) * 100];
+                const two = Math.max(candidate.goal.score + 500, Math.round((low * 0.75) / 100) * 100);
+                candidate.stars = [candidate.goal.score, two, Math.max(two + 500, Math.round(low / 100) * 100)];
             } else {
                 const runs = [...Array(BOT_RUNS).keys()].map((r) => botPlay(candidate, candidate.seed + 101 * r));
                 if (runs.some((r) => !r.won)) continue;
                 const most = Math.max(...runs.map((r) => r.moves));
                 const avg = runs.reduce((a, r) => a + r.score, 0) / runs.length;
-                candidate.moves = Math.max(10, Math.min(60, Math.ceil(most * (1.5 - d * 0.35)) + 2));
+                // Generous early: twice what the greedy bot needed, narrowing as levels climb.
+                candidate.moves = Math.max(12, Math.min(60, Math.ceil(most * (2.1 - d * 0.7)) + 3));
                 candidate.stars = [1, Math.round(avg / 100) * 100, Math.round((avg * 1.5) / 100) * 100];
             }
             L = candidate;
@@ -846,6 +841,6 @@
         return L;
     }
 
-    root.SweetsEngine = {level, design, start, swap, smash, freeSwitch, extraMoves, plantBomb, bonus, timeUp, validMoves, snapshot, botPlay, goalMet, orderDone, remainingBlockers, SUGAR_MAX};
+    root.SweetsEngine = {level, design, start, swap, smash, freeSwitch, extraMoves, plantBomb, bonus, timeUp, validMoves, snapshot, botPlay, goalMet, orderDone, remainingBlockers};
     if (typeof module !== 'undefined') module.exports = root.SweetsEngine;
 })(typeof self !== 'undefined' ? self : globalThis);

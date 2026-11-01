@@ -175,14 +175,14 @@ A match-3: four in a row makes a striped candy, an L or T a wrapped one, five a 
 bomb, and every pair of specials has its own combo. Six level types — score, jelly
 (single and double), ingredient drop, orders, clear the blockers, timed — over frosting
 with up to three layers, spreading chocolate, licorice locks, countdown candy bombs and
-odd-shaped boards. Extras of its own: a Sugar Rush meter that pays a free special after
-big cascades, and four boosters (hammer, free switch, +5 moves, colour bomb) that drop
+odd-shaped boards, and four boosters (hammer, free switch, +5 moves, colour bomb) that drop
 on the same 1-in-7 roll and gift animation as Hide & Meow's power-ups.
 
 A level is a seed (`sweets-engine.js`, `level(n)`). The engine builds the board and the
 goal, then a greedy bot plays it three times — the first run from the player's own
-seed — and the move budget (or score target) is set from what the bot needed, with a
-wide margin early that narrows as levels climb. A design the bot cannot finish is
+seed — to prove each level can be won and to set move budgets (twice what it needed at
+first, narrowing as levels climb). Score targets come from a casual bot that taps any
+match at random: they start below what it scores and climb past it. A design the bot cannot finish is
 redesigned; after six tries the level falls back to a plain score level. Moves return
 events with board snapshots, and the page animates snapshot to snapshot.
 

@@ -37,14 +37,15 @@
 
     /** Gradients and clip shapes, defined once for every candy on the page. */
     (function defs() {
-        const grads = COLOURS.map((c, i) => `<radialGradient id="cg${i}" cx="34%" cy="28%" r="80%"><stop offset="0" stop-color="${LIGHT[i]}"/><stop offset=".5" stop-color="${c}"/><stop offset="1" stop-color="${DARK[i]}"/></radialGradient>`
+        // Soft shading: mostly the candy's own colour, a little lighter at the top left.
+        const grads = COLOURS.map((c, i) => `<radialGradient id="cg${i}" cx="36%" cy="30%" r="85%"><stop offset="0" stop-color="${LIGHT[i]}" stop-opacity=".55"/><stop offset=".35" stop-color="${c}"/><stop offset="1" stop-color="${c}"/></radialGradient>`
             + `<clipPath id="cc${i}">${GEOM[i]}</clipPath>`).join('');
         const choc = '<radialGradient id="cgb" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#9A6644"/><stop offset=".55" stop-color="#5E3B26"/><stop offset="1" stop-color="#2E1B10"/></radialGradient>';
         const film = '<linearGradient id="cgw" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".45" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity=".3"/></linearGradient>';
         document.body.insertAdjacentHTML('afterbegin', `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>${grads}${choc}${film}</defs></svg>`);
     })();
 
-    const SHINE = '<ellipse cx="14" cy="12.5" rx="5.2" ry="2.8" transform="rotate(-32 14 12.5)" fill="#fff" opacity=".7"/><circle cx="26.5" cy="27" r="1.4" fill="#fff" opacity=".45"/>';
+    const SHINE = '<ellipse cx="14" cy="12.5" rx="4.6" ry="2.3" transform="rotate(-32 14 12.5)" fill="#fff" opacity=".38"/>';
 
     function body(i) {
         return GEOM[i].replace('/>', ` fill="url(#cg${i})" stroke="${DARK[i]}" stroke-width="1.3"/>`);
@@ -75,8 +76,7 @@
             // The candy sits in twisted cellophane, ends fanned out on both sides.
             art = `<path d="M2.5 11.5 10.5 17v6l-8 5.5c-1 .6-2-.2-1.7-1.3L3.6 20 .8 12.8c-.3-1.1.7-1.9 1.7-1.3zM37.5 11.5 29.5 17v6l8 5.5c1 .6 2-.2 1.7-1.3L36.4 20l2.8-7.2c.3-1.1-.7-1.9-1.7-1.3z" fill="url(#cg${i})" stroke="${DARK[i]}" stroke-width="1.2" stroke-linejoin="round"/>`
                 + `<g transform="translate(20 20) scale(.8) translate(-20 -20)">${body(i)}</g>`
-                + '<rect x="8.5" y="8.5" width="23" height="23" rx="9" fill="url(#cgw)" stroke="#fff" stroke-opacity=".7" stroke-width="1"/>'
-                + '<path d="M12 14q4-4 9-4.5" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".85"/>';
+                + '<rect x="8.5" y="8.5" width="23" height="23" rx="9" fill="url(#cgw)" fill-opacity=".5" stroke="#fff" stroke-opacity=".5" stroke-width="1"/>';
         } else {
             art = body(i) + (t.special === 'h' || t.special === 'v' ? stripes(i, t.special) : '') + SHINE;
         }
@@ -136,7 +136,7 @@
         typeLabel: $('type-label'), lvlNum: $('lvl-num'), counter: $('counter'), counterLabel: $('counter-label'), counterBox: $('counter-box'),
         scoreFill: $('score-fill'), score: $('score'), stars: [...document.querySelectorAll('.scorebar .star')],
         goals: $('goals'), wrap: $('boardwrap'), board: $('board'), fx: $('fx'), banner: $('banner'),
-        sugarFill: $('sugar-fill'), sugarMeter: $('sugar-meter'), boosters: $('boosters'), tip: $('tip'),
+        boosters: $('boosters'), tip: $('tip'),
         mapBtn: $('map-btn'), restartBtn: $('restart-btn'), helpBtn: $('help-btn'),
         sheet: $('sheet'), sheetBody: $('sheet-body'), sheetClose: $('sheet-close'),
         overlay: $('overlay'), ovTitle: $('ov-title'), ovStars: $('ov-stars'), ovText: $('ov-text'), ovGoals: $('ov-goals'), ovActions: $('ov-actions'),
@@ -158,6 +158,38 @@
 
     // --- map --------------------------------------------------------------------
 
+    // --- map --------------------------------------------------------------------------
+    //
+    // A candy road winding up from level 1 at the bottom: an SVG path through the level
+    // discs, sweets planted along its edges, the current level marked with a pin.
+
+    const STEP = 104;
+    const TYPE_COLOUR = {score: ['#FF7BB8', '#D9468E'], jelly: ['#B98CFF', '#7E55D6'], orders: ['#FFA94D', '#D9771A'], ingredients: ['#5FD68A', '#2E9A4B'], blockers: ['#62B8FF', '#2F7FC4'], timed: ['#FFD25A', '#D9A21A']};
+    const DECOR = [
+        // lollipop
+        '<svg viewBox="0 0 40 60"><rect x="18.5" y="26" width="3" height="32" rx="1.5" fill="#EFE3D3"/><circle cx="20" cy="20" r="15" fill="#FF8DC8"/><path d="M20 20m-9 0a9 9 0 1 1 9 9a5.5 5.5 0 1 1 5.5-5.5a2.5 2.5 0 1 1-2.5-2.5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>',
+        // gumdrop
+        '<svg viewBox="0 0 40 40"><path d="M6 34C6 18 12 8 20 8s14 10 14 26z" fill="#7FD6A8"/><circle cx="14" cy="22" r="1.6" fill="#fff" opacity=".8"/><circle cx="24" cy="16" r="1.6" fill="#fff" opacity=".8"/><circle cx="25" cy="27" r="1.6" fill="#fff" opacity=".8"/></svg>',
+        // candy cane
+        '<svg viewBox="0 0 40 60"><path d="M24 56V18a8 8 0 0 0-16 0" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><path d="M24 56V18a8 8 0 0 0-16 0" fill="none" stroke="#F0435A" stroke-width="7" stroke-linecap="round" stroke-dasharray="5 6"/></svg>',
+        // wrapped sweet
+        '<svg viewBox="0 0 56 30"><path d="M4 6l12 9-12 9zM52 6l-12 9 12 9z" fill="#FFD25A"/><ellipse cx="28" cy="15" rx="14" ry="11" fill="#FFB547"/><path d="M20 10q6-4 12-2" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity=".7"/></svg>',
+        // cupcake
+        '<svg viewBox="0 0 40 46"><path d="M8 24h24l-3 20H11z" fill="#B98CFF"/><path d="M8 26c-3-8 4-14 12-14s15 6 12 14z" fill="#FFE3F1"/><circle cx="20" cy="9" r="4" fill="#F0435A"/></svg>',
+        // cloud
+        '<svg viewBox="0 0 70 34"><path d="M14 30a10 10 0 0 1 2-20 14 14 0 0 1 26-3 11 11 0 0 1 16 9 8 8 0 0 1-2 14z" fill="#fff" opacity=".85"/></svg>',
+    ];
+
+    /** A smooth path through the points (Catmull-Rom turned into curves). */
+    function smooth(pts) {
+        let d = `M${pts[0][0]},${pts[0][1]}`;
+        for (let k = 0; k < pts.length - 1; k++) {
+            const p0 = pts[k - 1] || pts[k], p1 = pts[k], p2 = pts[k + 1], p3 = pts[k + 2] || p2;
+            d += ` C${p1[0] + (p2[0] - p0[0]) / 6},${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6},${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]},${p2[1]}`;
+        }
+        return d;
+    }
+
     function showMap() {
         gen++;
         clearTimeout(bakeTimer);
@@ -174,27 +206,59 @@
             els.map.classList.add('slide-in');
         }
         const last = store.unlocked + 9;
+        const W = els.levels.clientWidth || 360;
+        const top = 90, height = top + (last - 1) * STEP + 110;
+        const at = (n) => [W / 2 + Math.sin(n * 0.9) * W * 0.27, top + (last - n) * STEP];
         els.levels.innerHTML = '';
+        els.levels.style.height = `${height}px`;
+        const pts = [];
+        for (let n = last; n >= 1; n--) pts.push(at(n));
+        pts.push([at(1)[0], height]);
+        const reached = top + (last - store.unlocked) * STEP;
+        const road = smooth(pts);
+        els.levels.insertAdjacentHTML('beforeend', `<svg class="road" width="${W}" height="${height}" viewBox="0 0 ${W} ${height}" aria-hidden="true">
+            <path d="${road}" fill="none" stroke="rgba(91,42,78,.12)" stroke-width="40" stroke-linecap="round" transform="translate(0 5)"/>
+            <path d="${road}" fill="none" stroke="#FFF7FB" stroke-width="36" stroke-linecap="round"/>
+            <path d="${road}" fill="none" stroke="#FFC3E1" stroke-width="7" stroke-linecap="round" stroke-dasharray="2 16"/>
+            <clipPath id="ahead"><rect x="0" y="0" width="${W}" height="${reached}"/></clipPath>
+            <path d="${road}" fill="none" stroke="rgba(230,215,228,.75)" stroke-width="36" stroke-linecap="round" clip-path="url(#ahead)"/>
+        </svg>`);
+        // Sweets along the road, the same ones every visit (they hang off the level number).
         for (let n = last; n >= 1; n--) {
+            const [x, y] = at(n), side = Math.sin(n * 0.9) > 0 ? -1 : 1;
+            const kind = (n * 7 + 3) % DECOR.length;
+            const d = document.createElement('div');
+            d.className = 'decor';
+            d.style.left = `${Math.min(W - 40, Math.max(4, x + side * W * 0.32 - 22))}px`;
+            d.style.top = `${y - 34 + ((n * 13) % 30)}px`;
+            d.style.setProperty('--tilt', `${((n * 37) % 30) - 15}deg`);
+            d.innerHTML = DECOR[kind];
+            els.levels.appendChild(d);
+        }
+        for (let n = last; n >= 1; n--) {
+            const [x, y] = at(n);
+            const type = E.design(n, 0).type;
+            const [c, dark] = TYPE_COLOUR[type] || TYPE_COLOUR.score;
             const b = document.createElement('button');
             b.className = 'level-btn';
-            b.textContent = n;
+            b.style.left = `${x}px`;
+            b.style.top = `${y}px`;
+            b.style.setProperty('--c', c);
+            b.style.setProperty('--dark', dark);
+            b.innerHTML = `<b>${n}</b>`;
+            b.setAttribute('aria-label', n > store.unlocked ? `Level ${n}, locked` : `Level ${n}, ${TYPE_LABEL[type]}`);
             const stars = store.stars[n] || 0;
             if (n > store.unlocked) b.disabled = true;
             else {
                 if (stars) b.classList.add('done');
-                if (n === store.unlocked) b.classList.add('current');
                 b.addEventListener('click', () => openLevel(n));
             }
-            const tag = document.createElement('span');
-            tag.className = 'tag';
-            tag.textContent = n <= store.unlocked ? TYPE_TAG[E.design(n, 0).type] : 'locked';
-            b.appendChild(tag);
-            if (stars) {
-                const s = document.createElement('span');
-                s.className = 'stars';
-                s.textContent = '★'.repeat(stars);
-                b.appendChild(s);
+            if (n <= store.unlocked && n < store.unlocked) {
+                b.insertAdjacentHTML('beforeend', `<span class="stars">${[0, 1, 2].map((k) => `<i class="${k < stars ? 'on' : ''}">★</i>`).join('')}</span>`);
+            }
+            if (n === store.unlocked) {
+                b.classList.add('current');
+                b.insertAdjacentHTML('beforeend', `<span class="pin">${TYPE_TAG[type]}</span>`);
             }
             els.levels.appendChild(b);
         }
@@ -343,8 +407,6 @@
             star.style.left = `${Math.max(6, Math.min(96, at))}%`;
             star.classList.toggle('lit', snap.score >= L.stars[k] && (k > 0 || E.goalMet(state)));
         });
-        els.sugarFill.style.width = `${(snap.sugar / E.SUGAR_MAX) * 100}%`;
-        els.sugarMeter.classList.toggle('full', snap.sugar / E.SUGAR_MAX > 0.85);
         renderGoals(els.goals, snap);
     }
 
@@ -691,7 +753,6 @@
                 await sleep(render(ev.snap, {slow: true}) + 100);
             } else if (ev.t === 'sugar') {
                 render(ev.snap);
-                if (!ev.bonus) banner('Sugar Rush!');
                 fxAt('ring', x(ev.i), y(ev.i), cell, cell);
                 await sleep(ev.bonus ? 110 : 500);
             } else if (ev.t === 'collect') {
