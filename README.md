@@ -157,12 +157,17 @@ white inside a picture as food, and merges each picture down to a few colours; i
 writes `picnic-pics.js`, which is not edited by hand.
 
 Nests wait in lanes; tapping a lane's front nest fills a jar with that many ants of its
-colour. An ant can take any block that touches the edge or open space: it leaves its
-jar, walks through open space to the cell beside the block, picks it up and carries
-it out through empty cells, around the outside of the mat and down the hole. Paths
-are in mat units, so a layout shift cannot misplace them, and ants turn at corners. Ants
-whose colour is still buried wait in their jar; every jar full of ants that cannot
-reach anything and lunch is over. While every slot still shows a jar, taps wait.
+colour. An ant can take any block open to the outside on some side. The plate shows
+the picture plus a ring of open space (a window onto the 26x26 grid), and an ant is
+about a cell long, so it walks one-cell gaps without touching a block. A jar's ants
+set off in single file, round the picture and in through open space; one whose way
+is still blocked by pixels earlier ants will take queues two cells short and goes on
+once they are lifted (routes only ever wait on earlier pixels, so nothing waits in a
+circle). At its block the ant turns to face it and the pixel is swapped, in one frame,
+for the same block in its jaws; it carries it out and down the hole. A Digger's ants
+pop up under their blocks instead. Ants whose colour is still buried wait in their
+jar; every jar full of ants that cannot reach anything and lunch is over. While every
+slot still shows a jar, taps wait.
 
 A level is a seed. `eatingOrder` plays the board while it builds it, sending some nests
 before their colour can be reached, never so many that every slot fills; nests are

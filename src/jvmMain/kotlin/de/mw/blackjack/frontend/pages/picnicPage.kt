@@ -66,12 +66,15 @@ fun picnicPage(): String = buildString {
                 div(classes = "seats") { id = "seats"; attributes["aria-label"] = "Seats for waiting ants" }
                 div(classes = "lanes") { id = "lanes" }
                 p(classes = "message") { id = "message"; attributes["aria-live"] = "polite" }
-                div(classes = "toolbar") {
-                    toolButton("levels-btn", "Levels", ICON_LEVELS)
-                    toolButton("restart-btn", "Restart", ICON_RESTART)
-                    toolButton("help-btn", "Rules", ICON_HELP)
+                // One row: the toolbar, then the power-ups, so the plate gets the height.
+                div(classes = "bar") {
+                    div(classes = "toolbar") {
+                        toolButton("levels-btn", "Levels", ICON_LEVELS)
+                        toolButton("restart-btn", "Restart", ICON_RESTART)
+                        toolButton("help-btn", "Rules", ICON_HELP)
+                    }
+                    div(classes = "powerups") { id = "powerups" }
                 }
-                div(classes = "powerups") { id = "powerups" }
             }
             div(classes = "fly") { id = "fly" }
             div(classes = "sheet") {

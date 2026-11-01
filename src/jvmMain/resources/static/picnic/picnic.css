@@ -53,8 +53,10 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 /* --- the plate ----------------------------------------------------------- */
 
 .plate {
-    /* a square cloth mat; sized to leave room for jars, nests and toolbar on a phone */
-    position: relative; align-self: center; width: min(100%, 340px, 34dvh); aspect-ratio: 1;
+    /* a square cloth mat, as big as the screen's height leaves room for (--rest is
+       everything else on the page, header to the bottom bar) */
+    --rest: 404px;
+    position: relative; align-self: center; width: min(100%, 440px, max(34dvh, calc(100dvh - var(--rest)))); aspect-ratio: 1;
     padding: 0; border-radius: 14px;
     background:
         repeating-linear-gradient(45deg, rgba(160, 200, 220, .18) 0 1.5px, transparent 1.5px 22px),
@@ -65,12 +67,12 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 }
 /* Board and ant layer share one box, both sized against the mat itself (padding %
    would be measured against the page instead and put the ants off the grid). */
-.board { width: 88%; aspect-ratio: 1; display: grid; grid-template-columns: repeat(26, 1fr); gap: 1px; }
+.board { width: 88%; aspect-ratio: 1; display: grid; gap: 1px; }   /* tracks set per picture in build() */
 .ants { position: absolute; left: 6%; top: 6%; width: 88%; height: 88%; z-index: 5; pointer-events: none; }
 .px {
-    position: relative; border-radius: 22%; display: grid; place-items: center;
-    box-shadow: inset 0 1.5px 0 rgba(255,255,255,.4), inset 0 -2px 0 rgba(0,0,0,.22);
-    transition: transform .25s, opacity .25s;
+    position: relative; min-width: 0; min-height: 0; overflow: hidden; border-radius: 22%; display: grid; place-items: center;
+    /* a little cube: lit top, shaded bottom, in proportion at any cell size */
+    background-image: linear-gradient(180deg, rgba(255,255,255,.38) 0 16%, rgba(255,255,255,0) 16% 80%, rgba(0,0,0,.2) 80%);
 }
 .px .psym { width: 72%; height: 72%; opacity: .85; pointer-events: none; }
 .hole {
@@ -116,10 +118,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
     background: linear-gradient(170deg, var(--c-light), var(--c) 60%);
     box-shadow: inset 0 -5px 0 var(--c-dark), 0 6px 10px rgba(60, 35, 20, .3);
 }
-.seat .group::before { /* the lid */
-    content: ""; position: absolute; left: 14%; right: 14%; top: -7px; height: 9px; border-radius: 5px;
-    background: var(--c-dark); box-shadow: inset 0 2px 0 rgba(255,255,255,.25);
-}
 .seat .group .sym { position: absolute; left: 6px; top: 8px; width: 13px; height: 13px; opacity: .85; }
 .seat .group b { font-size: 21px; font-weight: 900; color: #fff; margin-top: 4px; text-shadow: var(--outline); }
 .seat.pickable .group { box-shadow: 0 0 0 3px #6FA9D6, inset 0 -5px 0 var(--c-dark); animation: pulse 1s ease-in-out infinite; }
@@ -159,27 +157,33 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 .fly .ghost { will-change: transform; }
 /* Positioned by transform alone (see along()); the legs swing about the thorax. */
 .walker { position: absolute; left: 0; top: 0; will-change: transform; }
+.walker .rig { position: absolute; inset: 0; }
 .walker img { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* The carried pixel: the same block as on the plate, lifted (it casts a shadow) and swaying a little. */
+.walker .load { position: absolute; left: 50%; top: 50%; }
+.walker .load .px { width: 100%; height: 100%; }
+.walker.carrying .load .px { box-shadow: 0 2px 3px rgba(40, 20, 10, .35); }
+.walker.carrying .load .px { animation: sway .3s ease-in-out infinite alternate; }
 .walker .legs { transform-origin: 50% 57.5%; animation: gait .14s ease-in-out infinite alternate; }
-.walker .block { position: absolute; left: 50%; top: -4px; width: 42%; height: 42%; border-radius: 2px; transform: translate(-50%, 0) scale(0); box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .12s cubic-bezier(.3, 1.6, .5, 1); }
-.walker.carrying .block { transform: translate(-50%, 0) scale(1) rotate(-6deg); }
-.px .crumb { position: absolute; left: 30%; top: 30%; width: 40%; height: 40%; border-radius: 2px; }
+.walker.waiting .legs { animation-play-state: paused; }     /* queued behind a pixel still to go */
 
 .message { margin: 0; min-height: 20px; text-align: center; font-size: 15px; font-weight: 800; color: #FFF8EC; text-shadow: 0 1px 0 rgba(75, 45, 25, .35); text-wrap: balance; }
 
 /* --- toolbar, power-ups, sheets (the house style) --------------------------- */
 
-.toolbar { display: flex; justify-content: center; gap: 12px; }
+/* One row at the bottom: the toolbar, a divider, the power-ups. */
+.bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 10px; padding: 2px 0 6px; }
+.toolbar { display: flex; justify-content: center; gap: 5px; padding-right: 10px; border-right: 2px solid rgba(255, 248, 236, .3); }
 .tool {
-    position: relative; width: 48px; height: 48px; border-radius: 50%;
+    position: relative; width: 36px; height: 36px; border-radius: 50%;
     background: var(--paper); border: 1.5px solid #EADDD3; box-shadow: var(--shadow);
     display: grid; place-items: center; color: var(--ink); transition: transform .12s, background .2s, color .2s;
 }
-.tool svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.tool svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 #levels-btn svg { fill: currentColor; stroke: none; }
 .tool:active { transform: scale(.92); }
 .tool::after {
-    content: attr(data-label); position: absolute; top: calc(100% + 8px); left: 50%; transform: translate(-50%, -4px);
+    content: attr(data-label); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translate(-50%, 4px);
     padding: 5px 12px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 13px; font-weight: 900;
     white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; z-index: 5;
 }
@@ -190,23 +194,23 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
     .tool:hover::after { opacity: 1; transform: translate(-50%, 0); }
 }
 
-.powerups { display: flex; justify-content: center; gap: 18px; margin-top: 2px; padding-bottom: 4px; }
+.powerups { display: flex; justify-content: center; gap: 12px; }
 .power {
-    position: relative; width: 56px; height: 56px; padding: 0; border-radius: 50%; display: grid; place-items: center;
+    position: relative; width: 40px; height: 40px; padding: 0; border-radius: 50%; display: grid; place-items: center;
     background: radial-gradient(circle at 50% 35%, #fff, var(--paper) 60%, #F3E6D6);
-    box-shadow: 0 0 0 4px var(--red), 0 4px 0 4px #B8303A, 0 8px 14px 4px rgba(60, 35, 20, .3);
+    box-shadow: 0 0 0 3px var(--red), 0 3px 0 3px #B8303A, 0 6px 10px 3px rgba(60, 35, 20, .3);
     transition: transform .12s;
 }
-.power svg { width: 32px; height: 32px; }
+.power svg { width: 25px; height: 25px; }
 .power span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .power:active { transform: translateY(3px) scale(.96); }
 .power:disabled { opacity: .45; cursor: default; filter: grayscale(.6); }
 .power b {
-    position: absolute; right: -8px; bottom: -8px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px;
-    background: var(--gold); color: #fff; font-size: 13px; font-weight: 900; display: grid; place-items: center;
+    position: absolute; right: -9px; bottom: -8px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px;
+    background: var(--gold); color: #fff; font-size: 12px; font-weight: 900; display: grid; place-items: center;
     box-shadow: 0 2px 0 #C98A1E; text-shadow: 0 1px 0 rgba(120, 70, 10, .5);
 }
-.power.armed { background: #FFF3C9; box-shadow: 0 0 0 4px var(--gold), 0 4px 0 4px #C98A1E, 0 0 0 10px rgba(242, 181, 68, .3); animation: armed 1.2s ease-in-out infinite; }
+.power.armed { background: #FFF3C9; box-shadow: 0 0 0 3px var(--gold), 0 3px 0 3px #C98A1E, 0 0 0 9px rgba(242, 181, 68, .3); animation: armed 1.2s ease-in-out infinite; }
 .power.bump b { animation: bump .5s cubic-bezier(.3, 1.8, .5, 1); }
 
 .sheet { position: fixed; inset: 0; z-index: 30; display: grid; align-items: end; justify-items: center; background: rgba(75, 58, 47, .35); animation: veil-in .3s ease-out both; }
@@ -242,11 +246,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 
 /* --- motion ----------------------------------------------------------------- */
 
-@keyframes idle-bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-2px) rotate(3deg); } }
 @keyframes gait { from { transform: rotate(-12deg); } to { transform: rotate(12deg); } }
 @keyframes march { 0%, 100% { transform: rotate(-6deg) translateY(0); } 50% { transform: rotate(6deg) translateY(-3px); } }
-@keyframes wiggle { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
-@keyframes crumb { from { transform: translate(0, 0); opacity: 1; } to { transform: translate(var(--dx), var(--dy)) scale(.4); opacity: 0; } }
+@keyframes sway { from { transform: rotate(-5deg); } to { transform: rotate(5deg); } }
 @keyframes quake { 0%, 100% { transform: none; } 15% { transform: translate(-8px, 3px) rotate(-1.5deg); } 35% { transform: translate(8px, -3px) rotate(1.5deg); } 55% { transform: translate(-5px, 2px); } 75% { transform: translate(3px, -1px); } }
 @keyframes shine { 0% { filter: none; } 40% { filter: saturate(1.3) brightness(1.05); transform: scale(1.04); } 100% { filter: none; transform: none; } }
 @keyframes wipe { to { transform: scale(.6) rotate(-8deg); opacity: 0; } }
@@ -271,8 +273,28 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
     .level-label strong { font-size: 16px; }
     .lane { height: 128px; }
     .token { height: 38px; transform: translate(-50%, calc(var(--d, 0) * 41px)); }
-    .tool { width: 42px; height: 42px; }
-    .power { width: 50px; height: 50px; }
+}
+
+/* Very short screens (iPhone SE in Safari): smaller header and nests, so the plate keeps its size. */
+@media (max-height: 620px) {
+    .plate { --rest: 352px; margin-bottom: 14px; }
+    .wrap { gap: 4px; }
+    .logo svg { width: 28px; height: 28px; }
+    .logo h1 { font-size: 17px; }
+    .level-label strong { font-size: 14px; }
+    .seat { height: 44px; }
+    .lane { height: 104px; }
+    .token { height: 32px; transform: translate(-50%, calc(var(--d, 0) * 34px)); }
+    .token b { font-size: 17px; }
+    .message { font-size: 13px; min-height: 17px; }
+}
+
+/* Narrow phones: the bottom bar still fits on one line. */
+@media (max-width: 380px) {
+    .bar { gap: 8px; }
+    .toolbar { gap: 4px; padding-right: 8px; }
+    .tool { width: 34px; height: 34px; }
+    .powerups { gap: 7px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
