@@ -2,6 +2,7 @@ package de.mw.blackjack.plugins
 
 import de.mw.blackjack.BuildInfo
 
+import de.mw.blackjack.frontend.pages.cellsPage
 import de.mw.blackjack.frontend.pages.draftPage
 import de.mw.blackjack.frontend.pages.hubPage
 import de.mw.blackjack.frontend.utils.Apps
@@ -112,7 +113,7 @@ fun Application.configureRouting() {
             )
         }
 
-        // The launcher and both offline games are static, so the service worker can
+        // The launcher and the offline games are static, so the service worker can
         // serve them with no network at all.
         // A game's own subdomain (blackjack.7mw.de, …) opens that game; any other
         // host gets the launcher.
@@ -123,6 +124,7 @@ fun Application.configureRouting() {
                 "sweets" -> call.respondText(sweetsPage(), ContentType.Text.Html)
                 "picnic" -> call.respondText(picnicPage(), ContentType.Text.Html)
                 "draft" -> call.respondText(draftPage(), ContentType.Text.Html)
+                "cells" -> call.respondText(cellsPage(), ContentType.Text.Html)
                 "marbles" -> call.respondRedirect("/marbles")
                 else -> call.respondText(hubPage(), ContentType.Text.Html)
             }
@@ -144,6 +146,8 @@ fun Application.configureRouting() {
         get("/picnic") { call.respondText(picnicPage(), ContentType.Text.Html) }
 
         get("/draft") { call.respondText(draftPage(), ContentType.Text.Html) }
+
+        get("/cells") { call.respondText(cellsPage(), ContentType.Text.Html) }
 
         draftApi()
 

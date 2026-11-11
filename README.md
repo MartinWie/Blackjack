@@ -13,10 +13,11 @@ The same server hosts more games behind a launcher at `/`:
 | `/sweets` | Sweet Swap, a match-3 with six level types | offline |
 | `/picnic` | Ant Picnic, ants eating pixel-art food | offline |
 | `/draft` | Draft Battle, a card draft and an auto-battle; solo or in a room | solo offline |
+| `/cells` | Cell Survivor, a white blood cell holding off virus chains | offline |
 | `/marbles` | Marbles, realtime multiplayer odd/even (ported from `MarbleGame`) | online |
 
-`/` follows the subdomain: `blackjack.*` opens the lobby, `meow.*`, `sweets.*`, `picnic.*` and
-`draft.*` their game, `marbles.*` redirects to `/marbles`, anything else (`games.7mw.de`) gets the launcher.
+`/` follows the subdomain: `blackjack.*` opens the lobby, `meow.*`, `sweets.*`, `picnic.*`,
+`draft.*` and `cells.*` their game, `marbles.*` redirects to `/marbles`, anything else (`games.7mw.de`) gets the launcher.
 
 Each game installs to the home screen as its own app: a browser installs one app per origin,
 so every game has a subdomain and a manifest at `/manifest/{app}.webmanifest` (`Apps.kt`).
@@ -33,6 +34,7 @@ npm run check:meow         # every difficulty's first 30 boards: unique, solvabl
 npm run check:sweets       # Sweet Swap levels: budgets the bot met, won from the player's seed
 npm run check:picnic       # Ant Picnic levels: winnable by their own eating order, seeded
 npm run check:draft        # Draft Battle: deterministic battles, fair seats and cards, a bot that drafts
+npm run check:cells        # Cell Survivor: seeded chapters, and the difficulty curve a bot finds
 ```
 
 Phone: `http://<your-mac-ip>:8090` on the same wifi — `start.sh` prints the address.
@@ -230,6 +232,26 @@ Solo plays against a bot that tries each card of the pair in a quick battle; low
 progress is saved and resumes. `npm run check:draft` keeps the battle deterministic, the
 server's turn rule equal to the engine's, both seats and every card in balance, and the
 bot ahead of random drafting.
+
+## Cell Survivor
+
+You are a white blood cell in a petri dish. Virus chains, a spiky head and its segments,
+crawl in single file down a winding agar channel to the heart at the bottom; every
+segment that gets through hurts it (a head three times as much), and the run ends when
+the heart does. The cell fights on its own with medical weapons (capsules, a spinning
+scalpel, a cotton swab, soap bubbles, acupuncture needles, med towers, static shock,
+satellites, a phage maw), each with five levels. Popped viruses drop DNA; every level
+up offers three picks: a new weapon, a weapon's next level, or a boost. The Antibody
+Burst charges up and is the one thing you tap. A chapter has chests at a quarter, half
+and the end, a mid-boss and a boss; coins buy permanent upgrades in the lab.
+
+A chapter is a seed (`cells-engine.js`, `chapter(n)`): its channel (rows kept clear of
+where the cell stands, centre or bottom by chapter), its waves and its boss. Viruses
+toughen steeply within a chapter, as a run's weapons stack up, and gently from one
+chapter to the next, so later chapters need the lab. A run steps at a fixed tick, so
+`npm run check:cells` plays the same game as the page: a bot that picks sensibly wins
+the first chapters without the lab, mostly loses chapter 12 without it, mostly wins it
+with what a player could have bought by then, and beats careless picks.
 
 ## Deploying
 

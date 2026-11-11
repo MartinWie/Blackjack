@@ -23,6 +23,7 @@ private val games = listOf(
     Game("/sweets", "Sweet Swap", "Match three", "/static/img/games/sweets-192.png", "from-pink-400/25", offline = true, badge = "Offline", subdomain = "sweets"),
     Game("/picnic", "Ant Picnic", "Feed the ants, clear the plate", "/static/img/games/picnic-192.png", "from-red-400/25", offline = true, badge = "Offline", subdomain = "picnic"),
     Game("/draft", "Draft Battle", "Keep a card, give one away, clash", "/static/img/games/draft-192.png", "from-amber-300/25", offline = true, badge = "Online/Offline", subdomain = "draft"),
+    Game("/cells", "Cell Survivor", "Guard the heart from virus chains", "/static/img/games/cells-192.png", "from-teal-300/25", offline = true, badge = "Offline", subdomain = "cells"),
     Game("/marbles", "Marbles", "Guess odd or even with friends", "/static/img/games/marbles-192.png", "from-sky-400/25", offline = false, badge = "Online", subdomain = "marbles"),
 )
 

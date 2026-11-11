@@ -1,6 +1,7 @@
 /**
- * Offline shell. The launcher, solo blackjack and Hide & Meow run with no network;
- * shared tables and marbles need the server, but everything the browser needs to *be*
+ * Offline shell. The launcher, solo blackjack and the client games (Hide & Meow, Sweet
+ * Swap, Ant Picnic, solo Draft Battle, Cell Survivor) run with no network; shared
+ * tables, Draft Battle rooms and marbles need the server, but everything the browser needs to *be*
  * the app — stylesheet, scripts, anime.js — is cached here, so a cold
  * start on a bad connection is instant and a dropped one lands on /offline instead
  * of the browser's error page.
@@ -14,6 +15,7 @@ const SHELL = [
     '/sweets',
     '/picnic',
     '/draft',
+    '/cells',
     '/offline',
     '/solo',
     '/static/hub.js',
@@ -34,6 +36,9 @@ const SHELL = [
     '/static/draft/draft-art.js',
     '/static/draft/draft.js',
     '/static/draft/draft.css',
+    '/static/cells/cells-engine.js',
+    '/static/cells/cells.js',
+    '/static/cells/cells.css',
     '/static/vendor/engine.js',
     '/static/output.css',
     '/static/vendor/anime.umd.min.js',
@@ -51,6 +56,7 @@ const SHELL = [
     '/static/img/games/sweets-192.png',
     '/static/img/games/picnic-192.png',
     '/static/img/games/draft-192.png',
+    '/static/img/games/cells-192.png',
     '/static/img/games/marbles-192.png',
     '/static/install.js',
 ];

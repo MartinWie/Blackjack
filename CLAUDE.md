@@ -3,8 +3,9 @@
 Casino-style blackjack prototype. Quick rounds on a phone, solo or in a shared room.
 The same server also hosts a launcher (`/`, `/games`), Marbles (`/marbles`, package
 `de.mw.marbles`), Hide & Meow (`/meow`, `static/meow/`), Sweet Swap (`/sweets`,
-`static/sweets/`), Ant Picnic (`/picnic`, `static/picnic/`) and Draft Battle
-(`/draft`, `static/draft/`, rooms in `de.mw.draft`). Read `README.md`
+`static/sweets/`), Ant Picnic (`/picnic`, `static/picnic/`), Draft Battle
+(`/draft`, `static/draft/`, rooms in `de.mw.draft`) and Cell Survivor (`/cells`,
+`static/cells/`). Read `README.md`
 first; it covers the stack, the rules and the trade-offs. This file is what a change
 needs to know.
 
@@ -48,6 +49,8 @@ needs to know.
   `draft-engine.js` (no `Math.random`, sin, cos, pow, hypot), or two phones in a room see
   different battles. The server never sees a card; `DraftRoom.picker`, `TURNS` and
   `MAX_ROUNDS` mirror the engine, and `check:draft` holds them equal.
+- **Cell Survivor's chapters are seeds** (`chapter(n)`), and its difficulty curve is
+  set by `check:cells`'s bot: a change to weapons or wave health moves every chapter.
 - Hide & Meow's track and endless boards share `generate`; endless indices start at
   `ENDLESS_BASE` so the two never hand out the same board.
 
@@ -82,6 +85,7 @@ npm run check:meow   # Hide & Meow boards: unique, solvable without guessing, se
 npm run check:sweets # Sweet Swap levels: bot-calibrated budgets, won from the player seed
 npm run check:picnic # Ant Picnic levels: each winnable by the order it was built from
 npm run check:draft  # Draft Battle: deterministic battles, fair seats and cards, the bot
+npm run check:cells  # Cell Survivor: seeded chapters and the difficulty curve
 bash start.sh        # Tailwind, engine bundle, jar, run
 ```
 
