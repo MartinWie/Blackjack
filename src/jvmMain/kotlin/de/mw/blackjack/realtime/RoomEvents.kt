@@ -5,10 +5,13 @@ import kotlinx.coroutines.channels.Channel
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Per-room SSE fan-out, in process. Every event is a whole table state, so a client
+ * Per-room SSE fan-out, in process. Every event is a whole room state, so a client
  * that misses one is corrected by the next — which is why the channel may drop.
+ *
+ * One instance per kind of room (blackjack tables, Draft Battle rooms): codes of two
+ * kinds may collide, and each registry closes the streams of codes it does not know.
  */
-object RoomEvents {
+open class RoomStreams {
 
     class Subscriber(val code: String, val playerId: String) {
         val openedAt: Long = System.nanoTime()
@@ -19,8 +22,6 @@ object RoomEvents {
 
     private val subscribers = ConcurrentHashMap<String, MutableSet<Subscriber>>()
 
-    /** One client may hold a couple of tabs open; past this it is a loop, not a player. */
-    private const val MAX_STREAMS_PER_ROOM = 24
 
     fun subscribe(code: String, playerId: String): Subscriber {
         val sub = Subscriber(code, playerId)
@@ -76,4 +77,12 @@ object RoomEvents {
     fun closeRoom(code: String) {
         subscribers.remove(code)?.forEach { it.channel.close() }
     }
+
+    private companion object {
+        /** One client may hold a couple of tabs open; past this it is a loop, not a player. */
+        const val MAX_STREAMS_PER_ROOM = 24
+    }
 }
+
+/** Blackjack tables' streams. */
+object RoomEvents : RoomStreams()

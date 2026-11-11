@@ -3,7 +3,8 @@
 Casino-style blackjack prototype. Quick rounds on a phone, solo or in a shared room.
 The same server also hosts a launcher (`/`, `/games`), Marbles (`/marbles`, package
 `de.mw.marbles`), Hide & Meow (`/meow`, `static/meow/`), Sweet Swap (`/sweets`,
-`static/sweets/`) and Ant Picnic (`/picnic`, `static/picnic/`). Read `README.md`
+`static/sweets/`), Ant Picnic (`/picnic`, `static/picnic/`) and Draft Battle
+(`/draft`, `static/draft/`, rooms in `de.mw.draft`). Read `README.md`
 first; it covers the stack, the rules and the trade-offs. This file is what a change
 needs to know.
 
@@ -43,6 +44,10 @@ needs to know.
   existing levels move. Sweet Swap's budgets come from its bot: a rule change that
   makes the bot weaker or stronger moves every level's difficulty with it.
 - `static/gift.js` is the one power-up drop animation; both games call `Gift.show`.
+- **Draft Battle's battle must stay deterministic across browsers**: integers only in
+  `draft-engine.js` (no `Math.random`, sin, cos, pow, hypot), or two phones in a room see
+  different battles. The server never sees a card; `DraftRoom.picker`, `TURNS` and
+  `MAX_ROUNDS` mirror the engine, and `check:draft` holds them equal.
 - Hide & Meow's track and endless boards share `generate`; endless indices start at
   `ENDLESS_BASE` so the two never hand out the same board.
 
@@ -55,6 +60,9 @@ needs to know.
   past its TTL, **or** untouched for `Pace.ROOM_IDLE_SECONDS`. The second clause is
   what bounds a long run — a seat is freed only when its player disconnects, and a tab
   left open never does.
+  Draft Battle's `DraftRooms.rooms` and `DraftEvents` follow the same rules in
+  `DraftRooms.sweep`; each kind of room has its own `RoomStreams`, since codes of two
+  kinds may collide.
 - `GET /metrics` reports rooms, streams, stream_rooms and heap. Over a long run all
   of them must come back down when people stop playing; if `stream_rooms` exceeds
   `rooms` for more than a sweep, streams are outliving their table.
@@ -73,6 +81,7 @@ npm run check:solo   # the offline path: real bundle + real bank.js, 25 rounds i
 npm run check:meow   # Hide & Meow boards: unique, solvable without guessing, seeded
 npm run check:sweets # Sweet Swap levels: bot-calibrated budgets, won from the player seed
 npm run check:picnic # Ant Picnic levels: each winnable by the order it was built from
+npm run check:draft  # Draft Battle: deterministic battles, fair seats and cards, the bot
 bash start.sh        # Tailwind, engine bundle, jar, run
 ```
 

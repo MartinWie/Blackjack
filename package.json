@@ -8,6 +8,7 @@
     "check:solo": "node tools/solo-session.mjs",
     "check:meow": "node tools/meow-check.mjs",
     "check:sweets": "node tools/sweets-check.mjs",
-    "check:picnic": "node tools/picnic-check.mjs"
+    "check:picnic": "node tools/picnic-check.mjs",
+    "check:draft": "node tools/draft-check.mjs"
   }
 }

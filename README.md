@@ -3,7 +3,7 @@
 A casino-style blackjack prototype for quick rounds on the go. Play solo, or share a
 four-character table code and let up to five people sit down together.
 
-The same server hosts two more games behind a launcher at `/`:
+The same server hosts more games behind a launcher at `/`:
 
 | Path | Game | Network |
 |---|---|---|
@@ -12,10 +12,11 @@ The same server hosts two more games behind a launcher at `/`:
 | `/meow` | Hide & Meow, a cat-finding logic puzzle | offline |
 | `/sweets` | Sweet Swap, a match-3 with six level types | offline |
 | `/picnic` | Ant Picnic, ants eating pixel-art food | offline |
+| `/draft` | Draft Battle, a card draft and an auto-battle; solo or in a room | solo offline |
 | `/marbles` | Marbles, realtime multiplayer odd/even (ported from `MarbleGame`) | online |
 
-`/` follows the subdomain: `blackjack.*` opens the lobby, `meow.*`, `sweets.*` and `picnic.*`
-their game, `marbles.*` redirects to `/marbles`, anything else (`games.7mw.de`) gets the launcher.
+`/` follows the subdomain: `blackjack.*` opens the lobby, `meow.*`, `sweets.*`, `picnic.*` and
+`draft.*` their game, `marbles.*` redirects to `/marbles`, anything else (`games.7mw.de`) gets the launcher.
 
 Each game installs to the home screen as its own app: a browser installs one app per origin,
 so every game has a subdomain and a manifest at `/manifest/{app}.webmanifest` (`Apps.kt`).
@@ -31,6 +32,7 @@ npm run check:solo         # plays 25 offline rounds through the real bundle, in
 npm run check:meow         # every difficulty's first 30 boards: unique, solvable, seeded
 npm run check:sweets       # Sweet Swap levels: budgets the bot met, won from the player's seed
 npm run check:picnic       # Ant Picnic levels: winnable by their own eating order, seeded
+npm run check:draft        # Draft Battle: deterministic battles, fair seats and cards, a bot that drafts
 ```
 
 Phone: `http://<your-mac-ip>:8090` on the same wifi — `start.sh` prints the address.
@@ -200,6 +202,34 @@ events with board snapshots, and the page animates snapshot to snapshot.
 
 There is no map: the game opens on the last level played, and Levels lists every
 unlocked level with its stars in a sheet, like the other games.
+
+## Draft Battle
+
+Each round lays out ten cards in five pairs. Whoever's turn it is keeps one card of the
+pair and the other goes to the rival; turns alternate and the round decides who starts.
+Cards are troops (goblins, swordsmen, archers, knights, a giant), multipliers (×2 of a
+troop, which bring at least two when there are none; Rally for +40% of everything),
+boosts, defenses (wall, shields, medics who get every other fallen troop back up, a
+tower) and weapons (catapult, fireball, lightning). Then the two armies fight on their
+own; first to two rounds wins the match (up to five when rounds are drawn).
+
+`draft-engine.js` holds every rule and the battle, a fixed-tick simulation in integers
+only (`Math.sqrt` of an integer, floored, is exact in every browser; sin, pow and
+`Math.random` are not). That is what lets a live room work without the server knowing a
+single card: both phones run the same battle on the same seed and picks.
+`de.mw.draft.DraftRoom` only orders the draft: whose turn, which card of the pair was
+kept, a 20 s clock that keeps the first card for an absent player, and both players
+being ready for the next round or a rematch. A player who leaves mid-match keeps their
+seat (the clock picks for them, and the link brings them back to their own hand); a
+phone on another build than the server's reloads, since it would fight other battles.
+Rooms live in `DraftRooms` with their own
+stream instance (`DraftEvents`), swept and handed back like the blackjack tables.
+
+Solo plays against a bot that tries each card of the pair in a quick battle; lower ranks
+(Bronze to Master, by trophies) slip into random picks more often. A solo match in
+progress is saved and resumes. `npm run check:draft` keeps the battle deterministic, the
+server's turn rule equal to the engine's, both seats and every card in balance, and the
+bot ahead of random drafting.
 
 ## Deploying
 

@@ -59,9 +59,10 @@ object Apps {
     val meow = App("meow", "Hide & Meow", "Meow", "meow", "/meow", "#F7F1EA", "#F7F1EA", "meow", offline = true)
     val sweets = App("sweets", "Sweet Swap", "Sweets", "sweets", "/sweets", "#FFE3F1", "#FFE3F1", "sweets", offline = true)
     val picnic = App("picnic", "Ant Picnic", "Picnic", "picnic", "/picnic", "#F4EFE3", "#B98257", "picnic", offline = true)
+    val draft = App("draft", "Draft Battle", "Draft", "draft", "/draft", "#F4E9D4", "#F4E9D4", "draft", offline = true)
     val marbles = App("marbles", "Marbles", "Marbles", "marbles", "/marbles", "#4A90D9", "#1E3A5F", "marbles", offline = false)
 
-    private val all = listOf(hub, blackjack, meow, sweets, picnic, marbles)
+    private val all = listOf(hub, blackjack, meow, sweets, picnic, draft, marbles)
 
     fun byKey(key: String): App? = all.firstOrNull { it.key == key }
 }

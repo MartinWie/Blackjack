@@ -2,6 +2,7 @@ package de.mw.blackjack.plugins
 
 import de.mw.blackjack.BuildInfo
 
+import de.mw.blackjack.frontend.pages.draftPage
 import de.mw.blackjack.frontend.pages.hubPage
 import de.mw.blackjack.frontend.utils.Apps
 import de.mw.blackjack.frontend.pages.lobbyPage
@@ -16,6 +17,10 @@ import de.mw.blackjack.game.RoomRegistry
 import de.mw.blackjack.models.Names
 import de.mw.blackjack.models.TableState
 import de.mw.blackjack.realtime.RoomEvents
+import de.mw.blackjack.realtime.RoomStreams
+import de.mw.draft.DraftEvents
+import de.mw.draft.DraftRooms
+import de.mw.draft.draftApi
 import de.mw.marbles.marblesGameCount
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -29,6 +34,7 @@ import io.ktor.server.sessions.*
 import io.ktor.util.cio.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
@@ -36,13 +42,13 @@ import kotlinx.serialization.json.Json
 import java.util.UUID
 
 @Serializable
-private data class CreatedRoom(val code: String)
+internal data class CreatedRoom(val code: String)
 
 @Serializable
 private data class JoinResult(val code: String, val seat: Int)
 
 @Serializable
-private data class ApiError(val error: String)
+internal data class ApiError(val error: String)
 
 @Serializable
 private data class BetRequest(val amount: Int)
@@ -57,7 +63,7 @@ private const val HEARTBEAT_MILLIS = 15_000L
 private val json = Json { encodeDefaults = true }
 
 /** The session, created on first contact — there is nothing to sign up for. */
-private fun ApplicationCall.player(): PlayerSession =
+internal fun ApplicationCall.player(): PlayerSession =
     sessions.get<PlayerSession>() ?: PlayerSession(UUID.randomUUID().toString(), Names.random())
         .also { sessions.set(it) }
 
@@ -99,6 +105,9 @@ fun Application.configureRouting() {
                     "streams ${RoomEvents.streamCount()}\n" +
                     "stream_rooms ${RoomEvents.codes().size}\n" +
                     "marbles_games ${marblesGameCount()}\n" +
+                    "draft_rooms ${DraftRooms.count()}\n" +
+                    "draft_streams ${DraftEvents.streamCount()}\n" +
+                    "draft_stream_rooms ${DraftEvents.codes().size}\n" +
                     "heap_mb $heapMb\n",
             )
         }
@@ -113,6 +122,7 @@ fun Application.configureRouting() {
                 "meow" -> call.respondText(meowPage(), ContentType.Text.Html)
                 "sweets" -> call.respondText(sweetsPage(), ContentType.Text.Html)
                 "picnic" -> call.respondText(picnicPage(), ContentType.Text.Html)
+                "draft" -> call.respondText(draftPage(), ContentType.Text.Html)
                 "marbles" -> call.respondRedirect("/marbles")
                 else -> call.respondText(hubPage(), ContentType.Text.Html)
             }
@@ -132,6 +142,10 @@ fun Application.configureRouting() {
         get("/sweets") { call.respondText(sweetsPage(), ContentType.Text.Html) }
 
         get("/picnic") { call.respondText(picnicPage(), ContentType.Text.Html) }
+
+        get("/draft") { call.respondText(draftPage(), ContentType.Text.Html) }
+
+        draftApi()
 
         get("/blackjack") {
             val player = call.player()
@@ -244,26 +258,7 @@ fun Application.configureRouting() {
                     val sub = RoomEvents.subscribe(room.code, player.playerId)
                     room.setConnected(player.playerId, true)
                     try {
-                        call.respondTextWriter(ContentType.Text.EventStream) {
-                            write("retry: 2000\n\n")
-                            write(sseFrame(json.encodeToString(TableState.serializer(), room.snapshot(player.playerId))))
-                            flush()
-                            while (this@get.coroutineContext.isActive) {
-                                // A heartbeat so a dead socket is noticed and no proxy
-                                // closes a stream that is merely between rounds.
-                                val payload = withTimeoutOrNull(HEARTBEAT_MILLIS) { sub.channel.receive() }
-                                if (payload == null) {
-                                    write(": ping\n\n")
-                                } else {
-                                    write(sseFrame(payload))
-                                }
-                                flush()
-                            }
-                        }
-                    } catch (_: ClosedReceiveChannelException) {
-                        // Room went away or the stream was rotated out.
-                    } catch (e: Exception) {
-                        application.log.debug("SSE stream ended for {}: {}", room.code, e.message)
+                        call.streamRoom(sub, json.encodeToString(TableState.serializer(), room.snapshot(player.playerId)))
                     } finally {
                         RoomEvents.unsubscribe(sub)
                         room.setConnected(player.playerId, false)
@@ -274,7 +269,32 @@ fun Application.configureRouting() {
     }
 }
 
-private fun sseFrame(payload: String): String =
+/**
+ * One room's stream: [first] (the current state), then whatever the room publishes, with
+ * a heartbeat so a dead socket is noticed and no proxy closes a stream that is merely
+ * between rounds. Returns once the client goes, the room closes, or the stream is rotated
+ * out; the caller unsubscribes.
+ */
+internal suspend fun ApplicationCall.streamRoom(sub: RoomStreams.Subscriber, first: String) {
+    try {
+        respondTextWriter(ContentType.Text.EventStream) {
+            write("retry: 2000\n\n")
+            write(sseFrame(first))
+            flush()
+            while (currentCoroutineContext().isActive) {
+                val payload = withTimeoutOrNull(HEARTBEAT_MILLIS) { sub.channel.receive() }
+                write(if (payload == null) ": ping\n\n" else sseFrame(payload))
+                flush()
+            }
+        }
+    } catch (_: ClosedReceiveChannelException) {
+        // The room went away or the stream was rotated out.
+    } catch (e: Exception) {
+        application.log.debug("Stream ended for {}: {}", sub.code, e.message)
+    }
+}
+
+internal fun sseFrame(payload: String): String =
     buildString {
         append("event: state\n")
         payload.lineSequence().forEach { append("data: ").append(it).append("\n") }
