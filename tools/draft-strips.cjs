@@ -6,8 +6,8 @@ const fs = require('fs');
 const A = '/Users/martinwiechmann/Documents/Dev/Git/blackjack/assets/sprites';
 const OUT = '/Users/martinwiechmann/Documents/Dev/Git/blackjack/src/jvmMain/resources/static/draft/img';
 const UNITS = (process.argv[2] || 'spear,knight,archer,goblin,mage,giant,dragon,tower,catapult').split(',');
-const TROOP = ['idle', 'walk1', 'walk2', 'windup', 'strike', 'pass'];
-const POSES = {tower: ['idle', 'flag', 'fire'], catapult: ['idle', 'fire', 'reload']};
+const TROOP = ['idle', 'walk1', 'walk2', 'windup', 'strike', 'pass', 'pass2', 'idle2', 'follow', 'recover', 'hit'];
+const POSES = {tower: ['idle', 'flag', 'fire', 'smoke'], catapult: ['idle', 'fire', 'reload', 'swing', 'crank']};
 (async () => {
   const b = await chromium.launch();
   const p = await b.newPage();
@@ -56,7 +56,7 @@ const POSES = {tower: ['idle', 'flag', 'fire'], catapult: ['idle', 'fire', 'relo
         info.push({h: y1 - y0, w: x1 - x0});
       }
       const out = {info};
-      for (const [team, c] of Object.entries(strips)) out[team] = {webp: c.toDataURL('image/webp', 0.78), png: c.toDataURL('image/png')};
+      for (const [team, c] of Object.entries(strips)) out[team] = {webp: c.toDataURL('image/webp', 0.74), png: c.toDataURL('image/png')};
       return out;
     }, {srcs, fly: unit === 'dragon'});
     for (const team of ['blue', 'red']) {

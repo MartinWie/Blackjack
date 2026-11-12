@@ -963,9 +963,10 @@
     }
 
     const ease = (x) => x * x * (3 - 2 * x);
-    // Poses in a troop's strip, POSE px each: idle, a step, the other step, the wind-up, the strike,
-    // and the legs passing between steps. A tower has idle, flag, fire; a catapult loaded, flung, cranking.
-    const POSE = 256, WALK = [1, 5, 2, 5], WINDUP = 3, STRIKE = 4;
+    // Poses in a troop's strip, POSE px each: idle, step, other step, wind-up, strike, legs
+    // passing (twice), idle breathing, follow-through, back on guard, flinch.
+    // A tower: idle, flag, fire, smoke. A catapult: loaded, arm up, flung, swinging, cranking.
+    const POSE = 256, WALK = [1, 5, 2, 6], WINDUP = 3, STRIKE = 4, IDLE2 = 7, FOLLOW = 8, RECOVER = 9, HIT = 10;
     const ANIMATED = ['spear', 'knight', 'archer', 'goblin', 'mage', 'giant', 'dragon', 'tower', 'catapult'];
 
     function draw(ctx, geo, cam, scene, alpha, now) {
@@ -1033,7 +1034,7 @@
             const x = u.sx, y = u.sy;
             const size = u.r * (u.wall ? 2.5 : u.fixed ? 3.3 : u.fly ? 4.2 : 3.7);
             // Every unit is a puppet on its feet: it leans, hops, squashes and stretches.
-            let ox = 0, oy = 0, face = 1, lean = 0, wide = 1, tall = 1, pose = u.fly ? WALK[Math.floor(now / 95 + u.id) & 3] : 0;
+            let ox = 0, oy = 0, face = 1, lean = 0, wide = 1, tall = 1, pose = 0;
             const target = u.target >= 0 ? b.units[u.target] : null;
             let ax = 0, ay = 0;   // unit vector to the target, on screen
             if (target) {
@@ -1044,60 +1045,42 @@
                 const clock = now / 33 + u.id * 1.7;
                 const act = scene.swings.get(u.id);
                 const since = act ? t - act.tick : 99;
+                const hitAge = t - (scene.hits.get(u.id) ?? -99);
                 if (!u.fixed) {
                     face = (target ? ax : (flip ? u.px - u.x : u.x - u.px)) < 0 ? -1 : 1;
                     const moving = u.x !== u.px || u.y !== u.py;
-                    if (u.frozen > b.tick) { /* stands stiff in the ice */ }
-                    else if (moving) {
-                        // A waddle: quick little feet for goblins, a heavy stomp for giants.
-                        // Two steps to a hop cycle: a foot forward at each top.
-                        const ph = clock * (0.3 + u.speed * 0.035), hop = Math.abs(Math.sin(ph));
-                        // A foot lands at the bottom of each hop, the legs pass at its top.
-                        if (!u.fly) pose = WALK[Math.floor(ph / (Math.PI / 2) + 0.5) & 3];
-                        oy -= hop * u.r * (u.fly ? 0 : 0.3);
-                        lean += Math.sin(ph) * 0.05 + 0.04;
-                        tall *= 0.97 + hop * 0.06; wide *= 1.02 - hop * 0.04;
-                    } else {
-                        const br = Math.sin(clock * 0.16);
-                        tall *= 1 + br * 0.03; wide *= 1 - br * 0.02;
-                    }
-                    if (act && act.kind === 'swing' && since < 8) {
-                        // Wind up leaning back, then lunge into the blow and settle.
-                        const p = since / 8;
-                        const w = 1 - ease(p);
+                    // Poses are held like drawn animation, a few ticks each; the body only
+                    // adds a hop and a nudge on top.
+                    if (u.frozen > b.tick) pose = HIT;
+                    else if (act && since < 3) {
+                        // The blow: a lunge for a blade, a kick back for a shot.
                         pose = STRIKE;
-                        lean += w * 0.18; ox += ax * u.r * 0.8 * w; oy += ay * u.r * 0.8 * w - w * u.r * 0.25; tall *= 1 + w * 0.06;
-                    } else if (act && act.kind === 'shoot' && since < 7) {
-                        // The kick of a shot: back on the heels, squashed, then forward again.
-                        const w = 1 - ease(since / 7);
-                        pose = STRIKE;
-                        lean -= w * 0.12; ox -= ax * u.r * 0.4 * w; oy -= ay * u.r * 0.4 * w;
-                        tall *= 1 - w * 0.05; wide *= 1 + w * 0.05;
-                    } else if (act && since < u.cd + 4 && u.cdLeft <= Math.min(6, u.cd >> 1)) {
-                        // Still in the fight and about to strike again: wind up.
-                        pose = WINDUP;
-                        lean -= 0.06;
-                    }
-                    if (u.fly) {
-                        oy -= 30 + Math.sin(clock * 0.12) * 6 + (pose === 2 ? -4 : pose === 1 ? 3 : 0);
-                    }
+                        const w = 1 - since / 3, dir = act.kind === 'swing' ? 0.8 : -0.35;
+                        ox += ax * u.r * dir * w; oy += ay * u.r * dir * w;
+                    } else if (act && since < 6) pose = FOLLOW;
+                    else if (hitAge < 3) pose = HIT;
+                    else if (act && since < u.cd + 4 && !moving) {
+                        // Still in the fight: back on guard, then winding up for the next blow.
+                        pose = u.cdLeft <= Math.min(5, u.cd >> 1) ? WINDUP : since < 10 ? RECOVER : (clock * 0.05 & 1 ? IDLE2 : RECOVER);
+                    } else if (moving || u.fly) {
+                        // A foot lands at the bottom of each hop, the legs pass at its top;
+                        // quick little feet for goblins, a heavy stomp for giants. Flyers flap.
+                        const ph = clock * (u.fly ? 0.42 : 0.3 + u.speed * 0.035), hop = Math.abs(Math.sin(ph));
+                        pose = WALK[Math.floor(ph / (Math.PI / 2) + 0.5) & 3];
+                        if (!u.fly) { oy -= hop * u.r * 0.28; tall *= 0.98 + hop * 0.04; }
+                    } else pose = clock * 0.045 & 1 ? IDLE2 : 0;
+                    if (u.fly) oy -= 30 + Math.sin(clock * 0.12) * 6;
                 } else if (u.type === 'catapult') {
                     face = target && ax < 0 ? -1 : 1;
-                    // The arm flies up and over, then is cranked back until the next boulder is loaded.
-                    if (act) pose = since < 3 ? 1 : since < 12 ? 2 : u.cdLeft > u.cd * 0.35 ? 1 : 0;
-                    if (act && since < 8) { const w = 1 - ease(since / 8); lean += w * 0.12; ox += ax * 5 * w; oy += ay * 5 * w - w * 3; tall *= 1 + w * 0.05; }
+                    // The arm swings up, flings, and is cranked back until the next boulder is loaded.
+                    if (act) pose = since < 2 ? 1 : since < 12 ? 2 : u.cdLeft > u.cd * 0.55 ? 1 : u.cdLeft > u.cd * 0.2 ? 4 : 0;
+                    if (act && since < 6) { const w = 1 - ease(since / 6); ox += ax * 4 * w; oy += ay * 4 * w - w * 3; }
                 } else if (u.type === 'tower') {
-                    // The flag flutters; a shot flashes from the top and jolts the stones.
-                    pose = act && since < 4 ? 2 : Math.floor(now / 380 + u.id) & 1;
-                    if (act && since < 6) { const w = 1 - ease(since / 6); tall *= 1 - w * 0.05; wide *= 1 + w * 0.04; }
+                    // The flag flutters; a shot flashes from the top, then smoke.
+                    pose = act && since < 3 ? 2 : act && since < 7 ? 3 : Math.floor(now / 380 + u.id) & 1;
                 }
-                // A blow knocks it back and flattens it for a moment.
-                const hitAge = t - (scene.hits.get(u.id) ?? -99);
-                if (hitAge < 4 && !u.wall) {
-                    const w = 1 - hitAge / 4;
-                    if (!u.fixed) { ox -= ax * u.r * 0.35 * w; oy -= ay * u.r * 0.35 * w; lean -= w * 0.18; }
-                    tall *= 1 - w * 0.1; wide *= 1 + w * 0.1;
-                }
+                // A blow knocks it back for a moment.
+                if (hitAge < 3 && !u.fixed) { const w = 1 - hitAge / 3; ox -= ax * u.r * 0.3 * w; oy -= ay * u.r * 0.3 * w; }
             }
             const dx = x + ox, dy = y + oy - size * 0.48, feet = y + oy + size * 0.02;
             if (!u.alive) {
@@ -1106,7 +1089,7 @@
                 const cs = Math.cos(rot) * k * sc, sn = Math.sin(rot) * k * sc;
                 ctx.globalAlpha = Math.max(0, 1 - fade * fade);
                 ctx.setTransform(cs, sn, -sn, cs, (dx - cam.x + sx) * k, (dy - Math.sin(fade * Math.PI) * u.r * 1.6 - cam.y + sy) * k);
-                if (strip) ctx.drawImage(s.img, 0, 0, POSE, POSE, -size * 0.625, -size * (u.fly ? 0.625 : 0.775), size * 1.25, size * 1.25);
+                if (strip) ctx.drawImage(s.img, (u.fixed ? 0 : HIT) * POSE, 0, POSE, POSE, -size * 0.625, -size * (u.fly ? 0.625 : 0.775), size * 1.25, size * 1.25);
                 else ctx.drawImage(s.img, -size / 2, -size / 2, size, size);
                 ctx.setTransform(k, 0, 0, k, (-cam.x + sx) * k, (-cam.y + sy) * k);
                 ctx.globalAlpha = 1;

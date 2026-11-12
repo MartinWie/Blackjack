@@ -45,9 +45,11 @@
 
     // --- pictures ----------------------------------------------------------------------------
 
-    const heads = LOOKS.map((l) => `virus-${l}`), bites = LOOKS.map((l) => `virus-${l}-bite`), bodies = LOOKS.map((l) => `body-${l}`);
+    const heads = LOOKS.map((l) => `virus-${l}`), halves = LOOKS.map((l) => `virus-${l}-half`), bites = LOOKS.map((l) => `virus-${l}-bite`),
+        hurts = LOOKS.map((l) => `virus-${l}-hurt`), bodies = LOOKS.map((l) => `body-${l}`);
     const NAMES = ['dish', 'hero', 'heart', 'pill', 'scalpel', 'bubble', 'tower', 'satellite', 'maw', 'dna', 'swab',
-        'hero-shoot', 'hero-blink', 'hero-windup', 'hero-breathe', ...LOOKS.flatMap((l) => [`virus-${l}`, `virus-${l}-bite`, `body-${l}`])];
+        'hero-shoot', 'hero-blink', 'hero-windup', 'hero-breathe', 'hero-follow', 'hero-hurt', 'heart-beat', 'heart-scared', 'tower-fire', 'satellite-zap',
+        ...LOOKS.flatMap((l) => [`virus-${l}`, `virus-${l}-half`, `virus-${l}-bite`, `virus-${l}-hurt`, `body-${l}`])];
     const pics = {};
     let loaded = null;
     function loadPics() {
@@ -176,6 +178,7 @@
     let run = null, raf = 0, last = 0, acc = 0, paused = false;
     let fx = [], shake = 0, dish = null, still = false, layout = null;
     let heroShots = 0, kick = 0, kickA = 0;
+    const SAT = [];
     // Canvas resolution as a share of the device's; lowered a step when frames run long.
     let quality = 1, slow = 0;
 
@@ -347,7 +350,9 @@
         // The heart at the end of the channel, beating faster when it is hurt.
         const end = run.ch.path[run.ch.path.length - 1];
         const beat = calm() ? 1 : 1 + Math.max(0, Math.sin(t * (run.core < run.coreMax * 0.3 ? 10 : 5))) * 0.08;
-        sprite('heart', 70, end.x, end.y + 6, false, beat);
+        // Scared when it is nearly gone or just got hurt; otherwise it squeezes with each beat.
+        const low = run.core < run.coreMax * 0.3;
+        sprite(shake > 0.05 || (low && t % 0.5 < 0.25) ? 'heart-scared' : !calm() && beat > 1.05 ? 'heart-beat' : 'heart', 70, end.x, end.y + 6, false, calm() ? 1 : 1 + (beat - 1) * 0.4);
 
         // Swabs and towers sit under the viruses.
         for (const z of run.zones) {
@@ -359,7 +364,7 @@
             base();
         }
         // Towers jolt as they fire.
-        for (const tw of run.towers) sprite('tower', 44, tw.x, tw.y - 8, false, 1 + Math.max(0, tw.cool / tw.rate - 0.75) * 0.7);
+        for (const tw of run.towers) sprite(tw.cool > tw.rate * 0.7 ? 'tower-fire' : 'tower', 44, tw.x, tw.y - 8);
 
         // Viruses, tail first so heads sit on top; bodies turn slowly, a hit flashes white.
         for (const ch of run.chains) {
@@ -385,7 +390,10 @@
                 const size = s.r * (head ? 2.7 : 2.5);
                 if (head) {
                     // Jaws snap open for a moment, each head in its own rhythm, and when it is hit.
-                    const name = !calm() && (punch > 0 || (t * 1.1 + s.id * 0.37) % 1 < 0.28) ? bites[ch.look] : heads[ch.look];
+                    // A chomp runs closed, half, open, half; a hit shows the wince.
+                    const chomp = (t * 1.1 + s.id * 0.37) % 1;
+                    const name = calm() ? heads[ch.look] : punch > 0 ? hurts[ch.look]
+                        : chomp < 0.08 ? halves[ch.look] : chomp < 0.26 ? bites[ch.look] : chomp < 0.34 ? halves[ch.look] : heads[ch.look];
                     turned(name, size, x, y, tilt, pulse);
                     if (flash) { g.globalAlpha = 0.5; const s2 = sized(name, size * k, true); if (s2) g.drawImage(s2, -size / 2, -size / 2, size, size); g.globalAlpha = 1; }
                     base();
@@ -420,7 +428,7 @@
         kick = Math.max(0, kick - 0.07);
         const quiet = calm();
         const due = run.timers.pill ?? 1;
-        const heroPose = kick > 0.45 ? 'hero-shoot' : due < 0.13 ? 'hero-windup'
+        const heroPose = shake > 0.05 ? 'hero-hurt' : kick > 0.6 ? 'hero-shoot' : kick > 0.3 ? 'hero-follow' : due < 0.13 ? 'hero-windup'
             : !quiet && (t + 0.4) % 3.2 < 0.14 ? 'hero-blink' : !quiet && t % 1.4 < 0.7 ? 'hero-breathe' : 'hero';
         const back = quiet ? 0 : kick * kick * 5;
         sprite(heroPose, 66, cell.x - Math.cos(kickA) * back, cell.y - Math.sin(kickA) * back);
@@ -438,7 +446,9 @@
         if (st) {
             for (let s2 = 0; s2 < st.count; s2++) {
                 const a = t * 1.6 + (s2 * Math.PI * 2) / st.count;
-                turned('satellite', 30, cell.x + Math.cos(a) * 130, cell.y + Math.sin(a) * 130 + Math.sin(t * 5 + s2) * 3, a + Math.PI / 2);
+                // Lit up for a moment after each zap.
+                const lit = (run.timers[SAT[s2] || (SAT[s2] = `sat${s2}`)] || 0) > st.rate * run.mods.cd * 0.72;
+                turned(lit ? 'satellite-zap' : 'satellite', 30, cell.x + Math.cos(a) * 130, cell.y + Math.sin(a) * 130, a + Math.PI / 2);
             }
             base();
         }

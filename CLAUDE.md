@@ -60,9 +60,11 @@ needs to know.
   Draft `fight()` nobody watches raises none. Keep new effects inside those rules.
 - Generated art lives in `static/draft/img` and `static/cells/img` (WebP) and is
   precached in `sw.js`; the large source PNGs are not in the repo.
-  Draft troops and buildings are strips of poses (`<unit>-<team>-anim.webp`: idle, steps,
-  legs passing, wind-up, strike; tower and catapult fire poses), built by `tools/draft-strips.cjs` from the source frames in
-  `assets/sprites`: it anchors every pose on the feet and makes red by recolouring blue.
+  Draft troops and buildings are strips of poses (`<unit>-<team>-anim.webp`; troops have
+  eleven: idle, steps, legs passing, wind-up, strike, follow-through, guard, flinch), built
+  by `tools/draft-strips.cjs` from the source frames in `assets/sprites`: it anchors every
+  pose on the feet and makes red by recolouring blue. The renderer holds each pose a few
+  ticks, like drawn animation, rather than bending one picture.
 - Hide & Meow's track and endless boards share `generate`; endless indices start at
   `ENDLESS_BASE` so the two never hand out the same board.
 
