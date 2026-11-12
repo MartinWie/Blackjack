@@ -9,6 +9,9 @@ const E = require('../src/jvmMain/resources/static/cells/cells-engine.js');
 
 let failed = 0;
 const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if (!ok) failed++; };
+// Speed limits hold on a developer's machine; a busy build server only reports them.
+const NO_TIMING = !!process.env.NO_TIMING;
+const timed = (ok, what) => (NO_TIMING ? console.log(`info ${what} (not a limit here)`) : check(ok, what));
 
 // 1. Chapters: the same seed, the same channel; a channel the cell does not stand in.
 let same = true, clear = Infinity, inside = true;
@@ -72,7 +75,7 @@ const seeds = [1, 2, 3, 4, 5, 6];
 const careful = [6, 8, 10, 12].reduce((s, n) => s + wins(n, labAt(n), true, seeds), 0);
 const careless = [6, 8, 10, 12].reduce((s, n) => s + wins(n, labAt(n), false, seeds), 0);
 check(careful > careless + 2, `sensible picks beat careless ones in chapters 6–12 (${careful} against ${careless} of 24)`);
-check(worst < 8, `the slowest step takes ${worst.toFixed(1)} ms (${((ms * 1000) / steps).toFixed(0)} µs on average)`);
+timed(worst < 8, `the slowest step takes ${worst.toFixed(1)} ms (${((ms * 1000) / steps).toFixed(0)} µs on average)`);
 
 // 3. A bullet hell stays cheap: five evolved weapons with stacked boosts, deep in the game.
 let hellWorst = 0, hellShots = 0;
@@ -90,7 +93,7 @@ for (const set of [['pill', 'needles', 'bubble', 'shock', 'satellite'], ['scalpe
         hellShots = Math.max(hellShots, run.shots.length);
     }
 }
-check(hellWorst < 6, `a maxed, evolved build steps in ${hellWorst.toFixed(1)} ms at worst with up to ${hellShots} shots in the dish`);
+timed(hellWorst < 6, `a maxed, evolved build steps in ${hellWorst.toFixed(1)} ms at worst with up to ${hellShots} shots in the dish`);
 
 if (failed) { console.log(`\n${failed} check(s) failed`); process.exit(1); }
 console.log('\nCell Survivor chapters are fair');

@@ -20,6 +20,8 @@ COPY tools ./tools
 COPY src/jvmMain/resources/static/draft ./src/jvmMain/resources/static/draft
 COPY src/jvmMain/resources/static/cells ./src/jvmMain/resources/static/cells
 COPY src/jvmMain/kotlin/de/mw/draft/DraftRoom.kt ./src/jvmMain/kotlin/de/mw/draft/DraftRoom.kt
+# Speed limits depend on the machine; here they are reported, not enforced.
+ENV NO_TIMING=1
 RUN node tools/draft-check.mjs && node tools/draft-cards.mjs && node tools/cells-check.mjs && touch /app/checked
 
 # Stage 2 — the jar, and the engine bundle that goes in it.

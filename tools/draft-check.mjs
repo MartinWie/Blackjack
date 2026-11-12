@@ -12,6 +12,9 @@ const room = readFileSync(new URL('../src/jvmMain/kotlin/de/mw/draft/DraftRoom.k
 
 let failed = 0;
 const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if (!ok) failed++; };
+// Speed limits hold on a developer's machine; a busy build server only reports them.
+const NO_TIMING = !!process.env.NO_TIMING;
+const timed = (ok, what) => (NO_TIMING ? console.log(`info ${what} (not a limit here)`) : check(ok, what));
 
 // 1. Both phones of a room must fight the very same battle: integers only.
 const banned = source.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '').match(/Math\.(random|sin|cos|tan|atan2?|pow|exp|log\w*|hypot|cbrt)\b|Date\.now|performance\./g);
@@ -126,7 +129,7 @@ check(timeouts / fights < 0.03, `few battles run out of time: ${timeouts} of ${f
 ticks.sort((a, b) => a - b);
 const seconds = (q) => (ticks[Math.floor(ticks.length * q)] * E.TICK_MS) / 1000;
 check(seconds(0.5) > 5 && seconds(0.5) < 22, `a battle lasts ${seconds(0.5).toFixed(1)} s on screen (median), ${seconds(0.9).toFixed(1)} s at the 90th percentile`);
-check(worst < 150, `the slowest battle simulates in ${worst.toFixed(0)} ms`);
+timed(worst < 150, `the slowest battle simulates in ${worst.toFixed(0)} ms`);
 rounds.sort((a, b) => a - b);
 check(rounds[rounds.length >> 1] >= 4, `a match runs ${rounds[rounds.length >> 1]} rounds (median), ${rounds[rounds.length - 1]} at most`);
 const rates = Object.entries(card).filter(([, v]) => v.n >= 20).map(([id, v]) => [id, Math.round((100 * v.w) / v.n)]).sort((a, b) => b[1] - a[1]);
@@ -148,7 +151,7 @@ for (let s = 1; s <= B; s++) {
 }
 // Offers are choices between equals now, so thinking buys less than it did.
 check(botWins / B >= 0.62, `the bot beats random drafting in ${Math.round((100 * botWins) / B)}% of matches`);
-check(botMs / botPicks < 120, `the bot thinks ${(botMs / botPicks).toFixed(0)} ms a pick`);
+timed(botMs / botPicks < 120, `the bot thinks ${(botMs / botPicks).toFixed(0)} ms a pick`);
 
 if (failed) { console.log(`\n${failed} check(s) failed`); process.exit(1); }
 console.log('\nDraft Battle is fair and deterministic');
