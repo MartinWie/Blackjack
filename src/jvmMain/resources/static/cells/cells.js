@@ -48,7 +48,7 @@
     const heads = LOOKS.map((l) => `virus-${l}`), halves = LOOKS.map((l) => `virus-${l}-half`), bites = LOOKS.map((l) => `virus-${l}-bite`),
         hurts = LOOKS.map((l) => `virus-${l}-hurt`), bodies = LOOKS.map((l) => `body-${l}`);
     const NAMES = ['dish', 'hero', 'heart', 'pill', 'scalpel', 'bubble', 'tower', 'satellite', 'maw', 'dna', 'swab',
-        'hero-shoot', 'hero-blink', 'hero-windup', 'hero-breathe', 'hero-follow', 'hero-hurt', 'heart-beat', 'heart-scared', 'tower-fire', 'satellite-zap',
+        'hero-blink', 'hero-breathe', 'hero-hurt', 'heart-beat', 'heart-scared', 'tower-fire', 'satellite-zap',
         ...LOOKS.flatMap((l) => [`virus-${l}`, `virus-${l}-half`, `virus-${l}-bite`, `virus-${l}-hurt`, `body-${l}`])];
     const pics = {};
     let loaded = null;
@@ -177,7 +177,6 @@
 
     let run = null, raf = 0, last = 0, acc = 0, paused = false;
     let fx = [], shake = 0, dish = null, still = false, layout = null;
-    let heroShots = 0, kick = 0, kickA = 0;
     const SAT = [];
     // Canvas resolution as a share of the device's; lowered a step when frames run long.
     let quality = 1, slow = 0;
@@ -416,22 +415,15 @@
         // The cell and what circles it.
         const cell = run.cell;
         if (run.charge >= 1) {
-            g.globalAlpha = 0.5 + 0.2 * Math.sin(t * 6);
+            g.globalAlpha = 0.55 + 0.1 * Math.sin(t * 2);
             g.drawImage(glow('rgba(110, 200, 255, .9)'), cell.x - 60, cell.y - 60, 120, 120);
             g.globalAlpha = 1;
         }
-        // The cell throws in time with its shots: arm back just before a volley, forward as it
-        // flies, and it breathes in between. It stands firm; only a shot nudges it back.
-        const fired = run.shots.length;
-        if (fired > heroShots && fired) { kick = 1; kickA = run.shots[fired - 1].a; }
-        heroShots = fired;
-        kick = Math.max(0, kick - 0.07);
+        // The cell stands still and calm: it breathes slowly, blinks now and then, and
+        // flinches only when the heart is hurt. Its weapons do the moving.
         const quiet = calm();
-        const due = run.timers.pill ?? 1;
-        const heroPose = shake > 0.05 ? 'hero-hurt' : kick > 0.6 ? 'hero-shoot' : kick > 0.3 ? 'hero-follow' : due < 0.13 ? 'hero-windup'
-            : !quiet && (t + 0.4) % 3.2 < 0.14 ? 'hero-blink' : !quiet && t % 1.4 < 0.7 ? 'hero-breathe' : 'hero';
-        const back = quiet ? 0 : kick * kick * 5;
-        sprite(heroPose, 66, cell.x - Math.cos(kickA) * back, cell.y - Math.sin(kickA) * back);
+        const heroPose = shake > 0.05 ? 'hero-hurt' : !quiet && (t + 0.4) % 4.5 < 0.14 ? 'hero-blink' : !quiet && t % 3.2 < 1.6 ? 'hero-breathe' : 'hero';
+        sprite(heroPose, 66, cell.x, cell.y);
         const armed = new Map(run.armed);
         const sc = armed.get('scalpel');
         if (sc) {

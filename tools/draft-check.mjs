@@ -53,7 +53,7 @@ check(same, 'a battle fought twice ends the same way');
 
 // A change to the rules changes these battles. That is allowed, but on purpose: set
 // GOLDEN to the new digest. Phones on the old build are reloaded by the build check.
-const GOLDEN = 'c6a0f794';
+const GOLDEN = '90df7e43';
 let digest = 0x811c9dc5;
 for (let s = 1; s <= 24; s++) {
     const r = E.rng(s * 13);
@@ -129,9 +129,15 @@ check(worst < 150, `the slowest battle simulates in ${worst.toFixed(0)} ms`);
 rounds.sort((a, b) => a - b);
 check(rounds[rounds.length >> 1] >= 4, `a match runs ${rounds[rounds.length >> 1]} rounds (median), ${rounds[rounds.length - 1]} at most`);
 const rates = Object.entries(card).filter(([, v]) => v.n >= 20).map(([id, v]) => [id, Math.round((100 * v.w) / v.n)]).sort((a, b) => b[1] - a[1]);
-// Epic cards are rare and meant to swing a match; every other card stays in the middle.
-const lop = rates.filter(([id, r]) => (E.CARDS[id].rarity === 2 ? r < 35 || r > 78 : r < 30 || r > 70));
-check(!lop.length, `every card wins 30–70% of the battles of armies holding it, an epic 35–78%${lop.length ? `: ${lop.map((r) => r.join(' ')).join(', ')}` : ''}`);
+// An offer is three cards of one rarity, so what matters is that cards of a rarity are
+// worth about the same: none far above or below its tier's average.
+const lop = [];
+for (const tier of [0, 1, 2]) {
+    const inTier = rates.filter(([id]) => E.CARDS[id].rarity === tier);
+    const mean = inTier.reduce((sum, [, r]) => sum + r, 0) / inTier.length;
+    for (const [id, r] of inTier) if (Math.abs(r - mean) > 10) lop.push(`${id} ${r} (tier ${mean.toFixed(0)})`);
+}
+check(!lop.length, `every card wins within 10 points of the other cards of its rarity${lop.length ? `: ${lop.join(', ')}` : ''}`);
 console.log(`     ${rates.map(([id, r]) => `${id} ${r}`).join(' · ')}`);
 
 // 5. The bot drafts better than chance, and the comeback offers keep matches alive.
@@ -144,7 +150,8 @@ for (let s = 1; s <= B; s++) {
     const policies = seat === 0 ? [timed, randomPolicy(r)] : [randomPolicy(r), timed];
     if (playMatch(s * 31, policies).winner === seat) botWins++;
 }
-check(botWins / B >= 0.75, `the bot beats random drafting in ${Math.round((100 * botWins) / B)}% of matches`);
+// Offers are choices between equals now, so thinking buys less than it did.
+check(botWins / B >= 0.62, `the bot beats random drafting in ${Math.round((100 * botWins) / B)}% of matches`);
 check(botMs / botPicks < 120, `the bot thinks ${(botMs / botPicks).toFixed(0)} ms a pick`);
 
 if (failed) { console.log(`\n${failed} check(s) failed`); process.exit(1); }

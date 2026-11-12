@@ -207,7 +207,7 @@ unlocked level with its stars in a sheet, like the other games.
 
 ## Draft Battle
 
-Both players draft at once, each from offers of their own: three cards a pick, three
+Both players draft at once, each from offers of their own: three cards of one rarity a pick, three
 picks in the first round and two in every round after. Cards stay for the whole match, so
 round three fights with everything picked in rounds one to three, and troop cards bring
 more troops the later they are kept. Each player has three hearts; a lost battle costs

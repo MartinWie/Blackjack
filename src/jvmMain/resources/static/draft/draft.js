@@ -86,7 +86,7 @@
     function cardText(id) {
         const c = E.CARDS[id];
         if (c.text) return c.text;
-        if (c.kind === 'mul') return `${c.f === 300 ? 'Triples' : 'Doubles'} your ${PLURAL[c.unit]}`;
+        if (c.kind === 'mul') return `×${c.f / 100} your ${PLURAL[c.unit]}`;
         const prey = E.preyOf(c.unit), foes = E.foesOf(c.unit).filter((t) => t !== 'wall');
         return `Beats ${names(prey)}. Fears ${names(foes)}.`;
     }
@@ -903,7 +903,7 @@
         g.fillRect(0, 0, n, n);
     });
     const dot = (colour) => radial(`dot:${colour}`, [[0, colour], [0.5, colour], [1, 'rgba(0,0,0,0)']]);
-    const SCORCH = () => radial('scorch', [[0, 'rgba(40, 28, 18, .5)'], [1, 'rgba(40, 28, 18, 0)']]);
+    const SCORCH = () => radial('scorch', [[0, 'rgba(40, 28, 18, .26)'], [1, 'rgba(40, 28, 18, 0)']]);
     const STAR = () => bake('star', 40, (g) => {
         g.font = '900 30px system-ui, sans-serif';
         g.textAlign = 'center';
@@ -954,9 +954,10 @@
         c.width = 620; c.height = 740;
         const g = c.getContext('2d');
         g.drawImage(art.ground.img, 0, 0, c.width, c.height);
-        g.fillStyle = 'rgba(122, 168, 92, .58)';
+        // Nearly flat: only a hint of the painted grass is left under one calm green.
+        g.fillStyle = 'rgba(112, 156, 88, .86)';
         g.fillRect(0, 0, c.width, c.height);
-        g.fillStyle = 'rgba(24, 44, 20, .16)';
+        g.fillStyle = 'rgba(24, 44, 20, .14)';
         g.fillRect(0, 0, c.width, c.height);
         calmGround = c;
         return c;
@@ -980,7 +981,7 @@
         // Scorch marks on the grass.
         const scorch = SCORCH();
         for (const d of scene.decals) {
-            const fade = Math.max(0, 1 - (t - d.born) / 400);
+            const fade = Math.max(0, 1 - (t - d.born) / 160);
             if (!fade) continue;
             ctx.globalAlpha = fade;
             ctx.drawImage(scorch, (flip ? E.W - d.x : d.x) - d.r, (flip ? E.H - d.y : d.y) - d.r * 0.7, d.r * 2, d.r * 1.4);
@@ -1348,14 +1349,14 @@
         }).join('');
         const ring = E.CIRCLE.concat(E.CIRCLE[0]).map((t) => `<img src="${IMG(`${t}-blue`)}" alt="${PLURAL[t]}" title="${PLURAL[t]}">`).join('<span>›</span>');
         openSheet(`<h2>How to play</h2>
-            <p>Every round you add cards to your army: three in the first round, two in each round after. Each pick offers three cards. Your rival drafts at the same time from offers of their own and sees your army only when the battle starts.</p>
+            <p>Every round you add cards to your army: three in the first round, two in each round after. Each pick offers three cards of the same rarity. Your rival drafts at the same time from offers of their own and sees your army only when the battle starts.</p>
             <p>Your army stays. Round three fights with every card picked in rounds one to three, and troop cards bring more troops the later they are picked.</p>
             <p>Then the armies march and fight on their own. Lose a battle and you lose a heart; a draw costs nobody a heart. Out of three hearts, out of the match. The loser of a round gets rarer cards in the next one.</p>
             <h3>Who beats whom</h3>
             <div class="ring">${ring}</div>
             <p>Each troop hits the next one on the ring twice as hard and takes little from it; two steps on it still has the edge. So every army has an answer. The Dragon burns Knights and falls to Archers; Towers stop Goblins and Giants knock them down.</p>
             <h3>Troops</h3><div class="legend">${legend(byKind('troop'))}</div>
-            <h3>Multipliers</h3><p>Every troop has a double (Rare) and a triple (Epic). They work on everything you hold, also troops picked later.</p><div class="legend">${legend(byKind('mul'))}</div>
+            <h3>Multipliers</h3><p>Every troop has a double (Rare) and a bigger multiplier (Epic). They work on everything you hold, also troops picked later.</p><div class="legend">${legend(byKind('mul'))}</div>
             <h3>Boosts</h3><div class="legend">${legend(byKind('buff'))}</div>
             <h3>Spells</h3><div class="legend">${legend(byKind('spell'))}</div>
             <h3>Buildings</h3><div class="legend">${legend(byKind('def'))}</div>

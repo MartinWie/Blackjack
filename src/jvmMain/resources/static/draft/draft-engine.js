@@ -56,10 +56,10 @@
         goblin: {name: 'Goblin', hp: 50, atk: 9, range: 12, speed: 11, cd: 9, r: 9},
         mage: {name: 'Mage', hp: 95, atk: 34, range: 240, speed: 5, cd: 22, r: 11, shot: 'orb'},
         giant: {name: 'Giant', hp: 987, atk: 46, range: 22, speed: 3, cd: 30, r: 24, splash: 34, cleave: 35},
-        dragon: {name: 'Dragon', hp: 1100, atk: 44, range: 150, speed: 6, cd: 22, r: 22, shot: 'flame', splash: 58, fly: true},
-        tower: {name: 'Tower', hp: 1300, atk: 36, range: 360, speed: 0, cd: 10, r: 22, shot: 'arrow', fixed: true},
-        catapult: {name: 'Catapult', hp: 600, atk: 70, range: 760, speed: 0, cd: 46, r: 18, shot: 'rock', splash: 80, fixed: true},
-        wall: {name: 'Wall', hp: 1800, atk: 0, range: 0, speed: 0, cd: 0, r: 26, fixed: true, wall: true},
+        dragon: {name: 'Dragon', hp: 860, atk: 38, range: 150, speed: 6, cd: 22, r: 22, shot: 'flame', splash: 58, fly: true},
+        tower: {name: 'Tower', hp: 1200, atk: 30, range: 360, speed: 0, cd: 10, r: 22, shot: 'arrow', fixed: true},
+        catapult: {name: 'Catapult', hp: 560, atk: 52, range: 760, speed: 0, cd: 46, r: 18, shot: 'rock', splash: 80, fixed: true},
+        wall: {name: 'Wall', hp: 2800, atk: 0, range: 0, speed: 0, cd: 0, r: 26, fixed: true, wall: true},
     };
     const TYPES = Object.keys(UNITS);
     /** Troops by the row they march in, front to back. */
@@ -104,15 +104,15 @@
         giant: {kind: 'troop', unit: 'giant', n: 1, rarity: 0, name: 'Giant'},
         dragon: {kind: 'troop', unit: 'dragon', n: 1, rarity: 2, name: 'Dragon'},
         rally: {kind: 'mul', unit: null, f: 150, rarity: 1, name: 'Rally', text: '+50% of every troop'},
-        arms: {kind: 'mul', unit: null, f: 200, rarity: 2, name: 'Call to Arms', text: 'Doubles every troop'},
-        rage: {kind: 'buff', rarity: 0, name: 'Rage', text: '+50% attack'},
+        arms: {kind: 'mul', unit: null, f: 180, rarity: 2, name: 'Call to Arms', text: '+80% of every troop'},
+        rage: {kind: 'buff', rarity: 0, name: 'Rage', text: '+70% attack'},
         armor: {kind: 'buff', rarity: 0, name: 'Armor', text: '+60% health'},
         shields: {kind: 'buff', rarity: 0, name: 'Shields', text: '35% less damage taken'},
         haste: {kind: 'buff', rarity: 1, name: 'Haste', text: 'Faster feet, quicker blows'},
-        vampire: {kind: 'buff', rarity: 1, name: 'Vampire', text: '+25% attack, and blows heal their damage'},
+        vampire: {kind: 'buff', rarity: 1, name: 'Vampire', text: '+55% attack, and blows heal their damage'},
         bomb: {kind: 'buff', rarity: 1, name: 'Bomb Belts', text: 'Fallen troops explode'},
         medics: {kind: 'buff', rarity: 1, name: 'Medics', text: 'Fallen troops get back up once'},
-        berserk: {kind: 'buff', rarity: 2, name: 'Berserk', text: 'Triple attack, a quarter less health'},
+        berserk: {kind: 'buff', rarity: 2, name: 'Berserk', text: 'Triple attack, 15% less health'},
         wall: {kind: 'def', rarity: 0, name: 'Wall', text: 'Five stone blocks in front'},
         tower: {kind: 'def', rarity: 0, name: 'Tower', text: 'An archer tower'},
         catapult: {kind: 'def', rarity: 1, name: 'Catapult', text: 'Hurls boulders from the back'},
@@ -126,8 +126,9 @@
     // A double and a triple of every troop on the circle.
     for (const t of ['spear', 'knight', 'archer', 'goblin', 'mage', 'giant']) {
         const name = CARDS[TROOP_CARD[t]].name;
-        CARDS[`x2${t}`] = {kind: 'mul', unit: t, f: 200, rarity: 1, name};
-        CARDS[`x3${t}`] = {kind: 'mul', unit: t, f: 300, rarity: 2, name};
+        CARDS[`x2${t}`] = {kind: 'mul', unit: t, f: t === 'knight' ? 240 : 200, rarity: 1, name};
+        // Triples are worth the same pick: a touch less for the troops that snowball, more for archers.
+        CARDS[`x3${t}`] = {kind: 'mul', unit: t, f: {knight: 230, mage: 230, archer: 420, spear: 350, goblin: 350}[t] || 300, rarity: 2, name};
     }
     const BY_RARITY = [0, 1, 2].map((k) => Object.keys(CARDS).filter((id) => CARDS[id].rarity === k));
     const OPENERS = BY_RARITY[0].filter((id) => CARDS[id].kind === 'troop');
@@ -135,24 +136,19 @@
     // --- offers ---------------------------------------------------------------------
 
     /**
-     * The three cards `seat` is offered for pick `pick` of `round`. Each round opens with
-     * a troop on offer (the first offer of a match is all troops). `rich` (the seat lost
-     * the round before) makes rarer cards likelier and guarantees one.
+     * The three cards `seat` is offered for pick `pick` of `round`. All three are of one
+     * rarity, so a pick is a choice between equals and never an epic among commons. The
+     * first offer of a match is all troops. `rich` (the seat lost the round before) makes
+     * rare and epic offers likelier.
      */
     function offer(seed, match, round, seat, pick, rich) {
         const r = rng(hashSeed(`draft:offer:${seed}:${match}:${round}:${seat}:${pick}`));
-        const odds = rich ? [38, 42, 20] : [64, 29, 7];
+        const odds = rich ? [35, 43, 22] : [58, 32, 10];
+        let x = r() * 100, k = 0;
+        while (k < 2 && x >= odds[k]) { x -= odds[k]; k++; }
+        const ids = round === 0 && pick === 0 ? OPENERS : BY_RARITY[k];
         const out = [];
         for (let guard = 0; out.length < OFFER && guard < 200; guard++) {
-            const slot = out.length;
-            let ids;
-            if ((round === 0 && pick === 0) || (pick === 0 && slot === 0)) ids = OPENERS;
-            else {
-                let x = r() * 100, k = 0;
-                while (k < 2 && x >= odds[k]) { x -= odds[k]; k++; }
-                if (rich && slot === OFFER - 1 && !out.some((id) => CARDS[id].rarity > 0)) k = Math.max(k, 1);
-                ids = BY_RARITY[k];
-            }
             const id = ids[Math.floor(r() * ids.length)];
             if (!out.includes(id)) out.push(id);
         }
@@ -208,11 +204,11 @@
                 if (c.kind === 'troop') a.worth[c.unit] += c.n * growth(round);
                 else if (c.kind === 'mul') muls.push(c);
                 else if (c.kind === 'def' || c.kind === 'spell') a[id]++;
-                else if (id === 'rage') a.atk += 50;
+                else if (id === 'rage') a.atk += 70;
                 else if (id === 'armor') a.hp += 60;
                 else if (id === 'shields') a.guard = Math.max(25, pct(a.guard, 65));
                 else if (id === 'haste') a.haste++;
-                else if (id === 'vampire') { a.vamp += 100; a.atk += 25; }
+                else if (id === 'vampire') { a.vamp += 100; a.atk += 55; }
                 else if (id === 'bomb') a.bomb++;
                 else if (id === 'medics') a.heal++;
                 else if (id === 'berserk') { a.atk += 200; a.berserk++; }
@@ -223,7 +219,7 @@
             // A multiplier on a troop not yet in the army multiplies a card's worth.
             a.worth[c.unit] = pct(a.worth[c.unit] || CARDS[TROOP_CARD[c.unit]].n * 100, c.f);
         }
-        for (let k = 0; k < a.berserk; k++) a.hp = pct(a.hp, 75);
+        for (let k = 0; k < a.berserk; k++) a.hp = pct(a.hp, 85);
         const total = TROOPS.reduce((n, t) => n + a.worth[t], 0);
         for (const t of TROOPS) {
             const w = a.worth[t];
@@ -332,7 +328,7 @@
         const a = this.armies[u.side];
         if (a.heal && !u.fixed && !u.revived) {
             u.revived = true;
-            u.hp = Math.max(1, pct(u.maxHp, Math.min(100, 20 + 25 * a.heal)));
+            u.hp = Math.max(1, pct(u.maxHp, Math.min(100, 35 + 25 * a.heal)));
             this.events.push({t: 'revive', id: u.id});
             return;
         }
@@ -386,7 +382,7 @@
                     const cy = Math.floor(foes.reduce((s, e) => s + e.y, 0) / foes.length);
                     const rad = 110 + 25 * a.fireball;
                     this.events.push({t: 'fireball', side, x: cx, y: cy, r: rad});
-                    for (const e of foes) if (d2(e, {x: cx, y: cy}) <= rad * rad) this.hurt(e, pct(90 * a.fireball, this.scale) + pct(e.maxHp, 8 * a.fireball), null);
+                    for (const e of foes) if (d2(e, {x: cx, y: cy}) <= rad * rad) this.hurt(e, pct(115 * a.fireball, this.scale) + pct(e.maxHp, 10 * a.fireball), null);
                 }
             }
             if (a.lightning && t === 36) {
@@ -397,11 +393,11 @@
                 }
             }
             if (a.frost && t === 28) {
-                const until = t + 40 + 20 * a.frost;
+                const until = t + 60 + 30 * a.frost;
                 for (const e of this.foes(side, true)) e.frozen = Math.max(e.frozen, until);
                 this.events.push({t: 'frost', side, until});
             }
-            if (a.meteor && t >= 40 && t % 12 === 4 && this.meteors[side] < 8 * a.meteor) {
+            if (a.meteor && t >= 40 && t % 12 === 4 && this.meteors[side] < 5 * a.meteor) {
                 const foes = this.foes(side, false);
                 if (foes.length) {
                     this.meteors[side]++;
