@@ -100,28 +100,29 @@
         const cell = centre ? {x: W / 2, y: H * 0.47, kind: 'centre'} : {x: W / 2, y: H - 175, kind: 'bottom'};
         const path = channel(r, cell);
         // Chapters ramp gently; within one the viruses toughen a lot, as your weapons do.
-        const tier = 1.8 * (1 + 0.55 * (n - 1) + 0.05 * (n - 1) * (n - 1));
+        const tier = 1.8 * (1 + 0.8 * (n - 1) + 0.08 * (n - 1) * (n - 1));
         const waves = [];
-        const count = 12 + Math.min(8, Math.floor(n / 2));
+        const count = 14 + Math.min(10, Math.floor(n / 2));
         let t = 2;
         for (let k = 0; k < count; k++) {
             const p = k / (count - 1);
             const mid = k === Math.floor(count / 2);
             waves.push({
-                at: t, size: mid ? 4 : Math.round(5 + p * 8 + r() * 3), big: mid ? 9 : 1,
-                hp: 9 * tier * (1 + 20 * p * p), speed: (mid ? 26 : 36 + p * 14) * (1 + Math.min(0.3, n * 0.012)),
+                at: t, size: mid ? 5 : Math.round(6 + p * 10 + r() * 4), big: mid ? 9 : 1,
+                hp: 9 * tier * (1 + 60 * p * p), speed: (mid ? 26 : 36 + p * 16) * (1 + Math.min(0.3, n * 0.012)),
                 look: mid ? 3 : Math.floor(r() * 3),
             });
-            t += mid ? 9 : 7 - p * 2 + r() * 2;
+            t += mid ? 9 : 6.5 - p * 2 + r() * 2;
         }
-        const boss = {at: t + 6, size: 6, big: 5, hp: 9 * tier * 7, speed: 22, look: 4};
+        const boss = {at: t + 6, size: 7, big: 5, hp: 9 * tier * 10, speed: 22, look: 4};
         return {n, cell, path, length: path.length * STEP, waves, boss, unlocks: UNLOCKS.filter(([, at]) => at <= n).map(([w]) => w)};
     }
 
     // --- weapons -----------------------------------------------------------------------------
     //
-    // Every weapon has five levels. `stats(level)` gives what it does at that level;
-    // `gains(id, level)` says what that level adds, read off the stats themselves.
+    // Every weapon has MAX_LEVEL levels. `stats(level)` gives what it does at that level;
+    // `gains(id, level)` says what that level adds, read off the stats themselves. A weapon
+    // at its top level evolves once its partner boost has been taken (EVOLVE).
 
     const WEAPONS = {
         pill: {name: 'Capsule', text: 'Fires pills at the virus closest to the core',
@@ -143,6 +144,20 @@
         maw: {name: 'Phage Maw', text: 'Bites weakened viruses clean in two',
             stats: (l) => ({cd: 1.9 - 0.15 * l, below: 0.16 + 0.03 * l, dmg: 20 + 8 * l, range: 330}),},
     };
+
+    /** Each weapon's evolved form: the boost it needs, and what it changes. */
+    const EVOLVE = {
+        pill: {boost: 'twin', name: 'Megadose', text: 'More pills, and each bursts where it hits', apply: (s) => { s.shots += 2; s.dmg *= 1.5; s.blast = 46; }},
+        scalpel: {boost: 'haste', name: 'Blade Storm', text: 'Twice the blades, cutting deeper', apply: (s) => { s.blades *= 2; s.dmg *= 1.5; }},
+        swab: {boost: 'reach', name: 'Scrub Brush', text: 'Two huge swabs at a time', apply: (s) => { s.radius *= 1.4; s.dps *= 2; s.twice = true; }},
+        bubble: {boost: 'chain', name: 'Foam Party', text: 'Bubbles split in three when they burst', apply: (s) => { s.count += 1; s.split = 3; }},
+        needles: {boost: 'ricochet', name: 'Needle Rain', text: 'Twice the needles, piercing everything', apply: (s) => { s.count *= 2; s.pierce += 3; }},
+        tower: {boost: 'might', name: 'Clinic', text: 'More towers, firing twice as fast', apply: (s) => { s.max += 3; s.rate /= 2; }},
+        shock: {boost: 'crit', name: 'Thunderstorm', text: 'Longer chains that strike twice', apply: (s) => { s.jumps *= 2; s.dmg *= 1.5; s.twice = true; }},
+        satellite: {boost: 'learn', name: 'Constellation', text: 'Twice the satellites, bigger bites', apply: (s) => { s.count *= 2; s.share *= 1.5; }},
+        maw: {boost: 'mend', name: 'Devourer', text: 'Swallows three at once, hungrier still', apply: (s) => { s.below += 0.2; s.bites = 3; }},
+    };
+
     const COUNTS = {shots: 'pill', blades: 'blade', count: '', max: 'tower', jumps: 'jump', pierce: 'pierce'};
     const BETTER = {dmg: 'harder', dps: 'harder', flat: 'harder', share: 'bigger bite', cd: 'faster', rate: 'faster', spin: 'faster',
         radius: 'bigger', blast: 'bigger bursts', range: 'longer reach', life: 'lasts longer', below: 'hungrier'};
@@ -168,18 +183,34 @@
 
     /** Weapons a chapter has to have been reached to be offered. */
     const UNLOCKS = [['pill', 1], ['scalpel', 1], ['swab', 1], ['bubble', 1], ['needles', 2], ['shock', 3], ['tower', 4], ['satellite', 6], ['maw', 8]];
-    const MAX_LEVEL = 5, MAX_WEAPONS = 5;
+    const MAX_LEVEL = 8, MAX_WEAPONS = 5;
 
+    // Boosts stack without end; each also opens one weapon's evolution.
     const BOOSTS = {
         might: {name: 'Might', text: '+15% damage'},
         haste: {name: 'Haste', text: 'Weapons 10% quicker'},
         crit: {name: 'Sharp Eye', text: '+8% chance of a double hit'},
         reach: {name: 'Reach', text: '+15% size and range'},
+        twin: {name: 'Twin Shot', text: 'One more pill and bubble, two more needles, per shot'},
+        ricochet: {name: 'Ricochet', text: 'Pills and needles pierce one more'},
+        chain: {name: 'Chain Reaction', text: 'Popped viruses burst and hurt their neighbours'},
         mend: {name: 'Mend', text: 'The core heals 6'},
         learn: {name: 'Quick Study', text: '+20% DNA'},
     };
 
+    /** A weapon's stats at a level, evolved or not. */
+    function statsOf(id, level, evolved) {
+        const s = WEAPONS[id].stats(level);
+        if (evolved) EVOLVE[id].apply(s);
+        return s;
+    }
+
     // --- the run ------------------------------------------------------------------------------
+
+    // The dish in buckets, so a shot only looks at the viruses near it.
+    const CELL = 48, GW = Math.ceil(W / CELL) + 2, GH = Math.ceil(H / CELL) + 2;
+    const bucket = (x, y) => Math.max(0, Math.min(GH - 1, Math.floor(y / CELL) + 1)) * GW + Math.max(0, Math.min(GW - 1, Math.floor(x / CELL) + 1));
+    const MAX_ORBS = 160;
 
     /**
      * One attempt at a chapter. `meta` is the lab: {attack, cooldown, crit, core} levels.
@@ -194,12 +225,17 @@
         this.core = this.coreMax;
         this.mods = {dmg: 1 + 0.06 * (meta.attack || 0), cd: Math.max(0.6, 1 - 0.03 * (meta.cooldown || 0)), crit: 0.03 * (meta.crit || 0), area: 1, xp: 1};
         this.weapons = {pill: 1};
+        this.evolved = {};
+        this.boosts = {};
+        this.armed = [];   // [id, stats] per weapon, rebuilt when a pick changes one
+        this.arm();
         this.timers = {};
         this.chains = [];
         this.shots = [];
         this.zones = [];
         this.towers = [];
         this.orbs = [];
+        this.pops = [];    // chain-reaction bursts waiting for the next tick
         this.events = [];
         this.level = 1;
         this.xp = 0;
@@ -207,6 +243,9 @@
         this.pending = null;
         this.waveIndex = 0;
         this.live = [];
+        this.grid = Array.from({length: GW * GH}, () => []);
+        this.found = [];
+        this.blasted = [];
         this.killed = 0;
         this.total = this.ch.waves.reduce((s, w) => s + w.size, 0) + this.ch.boss.size;
         this.bossOut = false;
@@ -215,6 +254,11 @@
         this.nextId = 1;
         this.chests = [];
     }
+
+    Run.prototype.arm = function () {
+        this.armed = Object.entries(this.weapons).map(([id, l]) => [id, statsOf(id, l, this.evolved[id])]);
+        this.armedAt = (this.armedAt || 0) + 1;   // tells a screen its weapon row is stale
+    };
 
     /** A point d units along the channel, between its samples (no 4-unit jumps). */
     Run.prototype.at = function (d) {
@@ -230,7 +274,7 @@
             const head = k === 0;
             const hp = w.hp * w.big * (head ? 2.5 : 1);
             const d = -k * (w.big > 1 ? 40 : 26), p = this.at(d);
-            segs.push({id: this.nextId++, d, hp, max: hp, head, r: (w.big > 1 ? 22 : 13) + (head ? 4 : 0), x: p.x, y: p.y, px: p.x, py: p.y, cut: 0, slow: 0});
+            segs.push({id: this.nextId++, d, hp, max: hp, head, look: w.look, r: (w.big > 1 ? 22 : 13) + (head ? 4 : 0), x: p.x, y: p.y, px: p.x, py: p.y, cut: 0, slow: 0});
         }
         this.chains.push({segs, speed: w.speed, look: w.look, boss: !!boss, big: w.big});
         if (w.big > 1 && !boss) this.events.push({t: 'midboss'});
@@ -249,13 +293,38 @@
         return this.live;
     };
 
+    /** Files every segment in its bucket; call after the segments moved. */
+    Run.prototype.index = function () {
+        for (const b of this.grid) b.length = 0;
+        for (const s of this.segments()) this.grid[bucket(s.x, s.y)].push(s);
+    };
+
+    /** Living segments within `r` of (x, y), into `out`. An area hits what it touches: a segment's own size counts. */
+    Run.prototype.near = function (x, y, r, out = this.found) {
+        out.length = 0;
+        const reach = r + 26;
+        const c0 = Math.max(0, Math.floor((x - reach) / CELL) + 1), c1 = Math.min(GW - 1, Math.floor((x + reach) / CELL) + 1);
+        const r0 = Math.max(0, Math.floor((y - reach) / CELL) + 1), r1 = Math.min(GH - 1, Math.floor((y + reach) / CELL) + 1);
+        for (let row = r0; row <= r1; row++) {
+            for (let col = c0; col <= c1; col++) {
+                for (const s of this.grid[row * GW + col]) {
+                    if (s.hp <= 0) continue;
+                    const dx = s.x - x, dy = s.y - y, rr = r + s.r;
+                    if (dx * dx + dy * dy <= rr * rr) out.push(s);
+                }
+            }
+        }
+        return out;
+    };
+
     Run.prototype.hurt = function (s, dmg, from) {
         if (s.hp <= 0) return;
         let hit = dmg * this.mods.dmg;
         const crit = this.r() < this.mods.crit;
         if (crit) hit *= 2;
         s.hp -= hit;
-        this.events.push({t: 'hit', x: s.x, y: s.y, n: Math.round(hit), crit, from});
+        // Only crits are worth a word on screen; a hit event per blow would flood a busy dish.
+        if (crit && from !== 'swab') this.events.push({t: 'hit', x: s.x, y: s.y, n: Math.round(hit), crit, from});
         if (s.hp <= 0) this.kill(s);
     };
 
@@ -263,9 +332,13 @@
         s.hp = 0;
         this.killed++;
         this.charge = Math.min(1, this.charge + 0.012);
-        const worth = s.head ? 3 : 1;
-        this.orbs.push({x: s.x, y: s.y, v: worth * (s.r > 20 ? 4 : 1), t: 0});
-        this.events.push({t: 'pop', x: s.x, y: s.y, r: s.r, head: s.head});
+        const worth = (s.head ? 3 : 1) * (s.r > 20 ? 4 : 1) * 2;
+        // A crowded dish merges DNA into the drops already on their way.
+        if (this.orbs.length < MAX_ORBS) this.orbs.push({x: s.x, y: s.y, v: worth, t: 0});
+        else this.orbs[this.killed % MAX_ORBS].v += worth;
+        this.events.push({t: 'pop', x: s.x, y: s.y, r: s.r, head: s.head, look: s.look});
+        const chain = this.boosts.chain || 0;
+        if (chain) this.pops.push({x: s.x, y: s.y, r: 44 + 8 * chain, dmg: s.max * 0.22 * chain / this.mods.dmg});
     };
 
     /** Targets, nearest the core first. */
@@ -295,25 +368,26 @@
         return true;
     };
 
+    Run.prototype.shot = function (kind, x, y, a, speed, props) {
+        this.shots.push({kind, x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, a, hit: [], ...props});
+    };
+
     Run.prototype.fire = function () {
-        const c = this.cell, area = this.mods.area;
-        for (const [w, l] of Object.entries(this.weapons)) {
-            const s = WEAPONS[w].stats(l);
+        const c = this.cell, area = this.mods.area, twin = this.boosts.twin || 0, rico = this.boosts.ricochet || 0;
+        for (const [w, s] of this.armed) {
             if (w === 'pill' && this.ready(w, s.cd)) {
                 const target = this.leading(640 * area);
-                if (target) for (let k = 0; k < s.shots; k++) {
-                    const spread = (k - (s.shots - 1) / 2) * 0.12;
-                    const a = Math.atan2(target.y - c.y, target.x - c.x) + spread;
-                    this.shots.push({kind: 'pill', x: c.x, y: c.y, vx: Math.cos(a) * 620, vy: Math.sin(a) * 620, dmg: s.dmg, pierce: s.pierce, life: 1.4, hit: new Set(), a});
+                const n = s.shots + twin;
+                if (target) for (let k = 0; k < n; k++) {
+                    const a = Math.atan2(target.y - c.y, target.x - c.x) + (k - (n - 1) / 2) * 0.12;
+                    this.shot('pill', c.x, c.y, a, 620, {dmg: s.dmg, pierce: s.pierce + rico, life: 1.4, blast: s.blast || 0});
                 }
             } else if (w === 'scalpel') {
                 const R = s.radius * area;
                 for (let k = 0; k < s.blades; k++) {
                     const a = this.t * s.spin + (k * Math.PI * 2) / s.blades;
-                    const bx = c.x + Math.cos(a) * R, by = c.y + Math.sin(a) * R;
-                    for (const seg of this.segments()) {
-                        const dx = seg.x - bx, dy = seg.y - by, reach = seg.r + 16;
-                        if (seg.hp <= 0 || dx * dx + dy * dy > reach * reach || seg.cut > this.t) continue;
+                    for (const seg of this.near(c.x + Math.cos(a) * R, c.y + Math.sin(a) * R, 16)) {
+                        if (seg.cut > this.t) continue;
                         seg.cut = this.t + 0.3;
                         this.hurt(seg, s.dmg, 'scalpel');
                     }
@@ -321,22 +395,20 @@
             } else if (w === 'swab' && this.ready(w, s.cd)) {
                 const lead = this.leading();
                 if (lead) {
-                    const p = this.at(lead.d + 70);
-                    this.zones.push({kind: 'swab', x: p.x, y: p.y, r: s.radius * area, dps: s.dps, life: s.life, age: 0});
+                    for (const ahead of s.twice ? [70, 210] : [70]) {
+                        const p = this.at(lead.d + ahead);
+                        this.zones.push({kind: 'swab', x: p.x, y: p.y, r: s.radius * area, dps: s.dps, life: s.life, age: 0});
+                    }
                 }
             } else if (w === 'bubble' && this.ready(w, s.cd)) {
-                for (let k = 0; k < s.count; k++) {
-                    const a = this.r() * Math.PI * 2;
-                    this.shots.push({kind: 'bubble', x: c.x, y: c.y, vx: Math.cos(a) * 210, vy: Math.sin(a) * 210, dmg: s.dmg, blast: s.blast * area, life: 4.5, hit: new Set()});
+                for (let k = 0; k < s.count + twin; k++) {
+                    this.shot('bubble', c.x, c.y, this.r() * Math.PI * 2, 210, {dmg: s.dmg, blast: s.blast * area, life: 4.5, split: s.split || 0});
                 }
             } else if (w === 'needles' && this.ready(w, s.cd)) {
                 const target = this.nearest(c, 520 * area) || this.leading();
                 if (target) {
-                    const base = Math.atan2(target.y - c.y, target.x - c.x);
-                    for (let k = 0; k < s.count; k++) {
-                        const a = base + (k - (s.count - 1) / 2) * 0.16;
-                        this.shots.push({kind: 'needle', x: c.x, y: c.y, vx: Math.cos(a) * 760, vy: Math.sin(a) * 760, dmg: s.dmg, pierce: s.pierce, life: 0.9, hit: new Set(), a});
-                    }
+                    const base = Math.atan2(target.y - c.y, target.x - c.x), n = s.count + 2 * twin;
+                    for (let k = 0; k < n; k++) this.shot('needle', c.x, c.y, base + (k - (n - 1) / 2) * 0.16, 760, {dmg: s.dmg, pierce: s.pierce + rico, life: 0.9});
                 }
             } else if (w === 'tower' && this.ready(w, s.cd)) {
                 if (this.towers.length < s.max) {
@@ -349,8 +421,9 @@
                     this.towers.push({x, y, dmg: s.dmg, rate: s.rate, range: s.range * area, life: s.life, cool: 0});
                 }
             } else if (w === 'shock' && this.ready(w, s.cd)) {
-                let from = this.leading(560 * area);
-                if (from) {
+                for (let strike = 0; strike < (s.twice ? 2 : 1); strike++) {
+                    let from = this.leading(560 * area);
+                    if (!from) break;
                     const seen = new Set(), path = [{x: c.x, y: c.y}];
                     for (let k = 0; k <= s.jumps && from; k++) {
                         seen.add(from.id);
@@ -373,12 +446,15 @@
                     }
                 }
             } else if (w === 'maw' && this.ready(w, s.cd)) {
-                let prey = null;
-                for (const seg of this.segments()) {
-                    if (seg.hp <= 0 || dist2(seg, c) > s.range * s.range * area * area) continue;
-                    if (!prey || seg.hp / seg.max < prey.hp / prey.max) prey = seg;
-                }
-                if (prey) {
+                const bitten = s.bites ? new Set() : null;
+                for (let bite = 0; bite < (s.bites || 1); bite++) {
+                    let prey = null;
+                    for (const seg of this.segments()) {
+                        if (seg.hp <= 0 || (bitten && bitten.has(seg.id)) || dist2(seg, c) > s.range * s.range * area * area) continue;
+                        if (!prey || seg.hp / seg.max < prey.hp / prey.max) prey = seg;
+                    }
+                    if (!prey) break;
+                    if (bitten) bitten.add(prey.id);
                     this.events.push({t: 'bite', x: prey.x, y: prey.y});
                     if (prey.hp / prey.max <= s.below && prey.r < 24) this.kill(prey);
                     else this.hurt(prey, s.dmg, 'maw');
@@ -387,23 +463,32 @@
         }
     };
 
+    /** Keeps the items `keep` says yes to, in place: no new array per tick. */
+    function prune(list, keep) {
+        let n = 0;
+        for (let i = 0; i < list.length; i++) if (keep(list[i])) list[n++] = list[i];
+        list.length = n;
+    }
+
+    /** Area damage; its own scratch list, as it runs inside a loop over `found`. */
+    Run.prototype.burst = function (x, y, r, dmg, from) {
+        for (const o of this.near(x, y, r, this.blasted)) this.hurt(o, dmg, from);
+    };
+
     Run.prototype.move = function () {
         // Chains crawl in single file: a chain never runs into the tail of the one ahead
         // (a slow one holds up the rest), and a segment that lost the one ahead closes up.
         let limit = Infinity;
         for (const ch of this.chains) {
-            ch.segs = ch.segs.filter((s) => s.hp > 0);
+            prune(ch.segs, (s) => s.hp > 0);
             if (!ch.segs.length) continue;
             // A segment that comes to lead is drawn with a face, but counts as what it is.
-            ch.segs.forEach((s, k) => {
+            for (let k = 0; k < ch.segs.length; k++) {
+                const s = ch.segs[k];
                 s.px = s.x; s.py = s.y;
                 const v = ch.speed * (s.slow > this.t ? 0.45 : 1);
                 if (k === 0) s.d = Math.min(s.d + v * TICK, Math.max(s.d, limit));
-                else {
-                    const gap = ch.big > 1 ? 40 : 26;
-                    const want = ch.segs[k - 1].d - gap;
-                    s.d = Math.min(want, s.d + v * 2.2 * TICK);
-                }
+                else s.d = Math.min(ch.segs[k - 1].d - (ch.big > 1 ? 40 : 26), s.d + v * 2.2 * TICK);
                 const p = this.at(s.d);
                 s.x = p.x; s.y = p.y;
                 if (s.d >= this.ch.length) {
@@ -412,38 +497,60 @@
                     this.killed++;
                     this.events.push({t: 'leak', x: s.x, y: s.y});
                 }
-            });
+            }
             const tail = ch.segs[ch.segs.length - 1];
             limit = tail.d - (tail.r + 18);
         }
-        this.chains = this.chains.filter((ch) => ch.segs.some((s) => s.hp > 0));
+        prune(this.chains, (ch) => ch.segs.some((s) => s.hp > 0));
         this.live = null;
+        this.index();
+        // Chain reactions from the last tick go off now, so a crowd pops in a ripple.
+        if (this.pops.length) {
+            const pops = this.pops;
+            this.pops = [];
+            for (const p of pops) {
+                this.events.push({t: 'chain', x: p.x, y: p.y, r: p.r});
+                this.burst(p.x, p.y, p.r, p.dmg, 'chain');
+            }
+        }
         // Shots fly; pills and needles pierce a few, bubbles bounce off the dish.
+        const spawned = [];
         for (const sh of this.shots) {
             sh.x += sh.vx * TICK; sh.y += sh.vy * TICK; sh.life -= TICK;
+            if (sh.life <= 0) continue;
             if (sh.kind === 'bubble') {
                 if (sh.x < 20 || sh.x > W - 20) sh.vx *= -1;
                 if (sh.y < 20 || sh.y > H - 20) sh.vy *= -1;
             }
-            for (const seg of this.segments()) {
-                if (sh.life <= 0 || seg.hp <= 0 || sh.hit.has(seg.id) || dist2(seg, sh) > (seg.r + 8) * (seg.r + 8)) continue;
+            for (const seg of this.near(sh.x, sh.y, 8)) {
+                if (seg.hp <= 0 || sh.hit.includes(seg.id)) continue;
                 if (sh.kind === 'bubble') {
-                    for (const o of this.segments()) if (o.hp > 0 && dist2(o, sh) <= sh.blast * sh.blast) this.hurt(o, sh.dmg, 'bubble');
+                    this.burst(sh.x, sh.y, sh.blast, sh.dmg, 'bubble');
                     this.events.push({t: 'burst', x: sh.x, y: sh.y, r: sh.blast});
+                    // Foam Party: a burst bubble leaves three small ones behind, once.
+                    for (let k = 0; k < sh.split; k++) {
+                        const a = this.r() * Math.PI * 2;
+                        spawned.push({kind: 'bubble', x: sh.x, y: sh.y, vx: Math.cos(a) * 240, vy: Math.sin(a) * 240, a, hit: [seg.id], dmg: sh.dmg * 0.5, blast: sh.blast * 0.7, life: 2.2, split: 0, small: true});
+                    }
                     sh.life = 0;
                     break;
                 }
-                sh.hit.add(seg.id);
+                sh.hit.push(seg.id);
                 this.hurt(seg, sh.dmg, sh.kind);
-                if (sh.hit.size > sh.pierce) { sh.life = 0; break; }
+                if (sh.blast) {
+                    this.burst(sh.x, sh.y, sh.blast, sh.dmg * 0.5, sh.kind);
+                    this.events.push({t: 'burst', x: sh.x, y: sh.y, r: sh.blast, pill: true});
+                }
+                if (sh.hit.length > sh.pierce) { sh.life = 0; break; }
             }
         }
-        this.shots = this.shots.filter((s) => s.life > 0 && s.x > -40 && s.x < W + 40 && s.y > -40 && s.y < H + 40);
+        for (const b of spawned) this.shots.push(b);
+        prune(this.shots, (s) => s.life > 0 && s.x > -40 && s.x < W + 40 && s.y > -40 && s.y < H + 40);
         for (const z of this.zones) {
             z.age += TICK;
-            for (const seg of this.segments()) if (seg.hp > 0 && dist2(seg, z) <= z.r * z.r) { this.hurt(seg, z.dps * TICK, 'swab'); seg.slow = this.t + 0.2; }
+            for (const seg of this.near(z.x, z.y, z.r - 13)) { this.hurt(seg, z.dps * TICK, 'swab'); seg.slow = this.t + 0.2; }
         }
-        this.zones = this.zones.filter((z) => z.age < z.life);
+        prune(this.zones, (z) => z.age < z.life);
         for (const tw of this.towers) {
             tw.life -= TICK;
             tw.cool -= TICK;
@@ -454,32 +561,35 @@
             this.events.push({t: 'laser', x0: tw.x, y0: tw.y, x1: target.x, y1: target.y});
             this.hurt(target, tw.dmg, 'tower');
         }
-        this.towers = this.towers.filter((t) => t.life > 0);
+        prune(this.towers, (t) => t.life > 0);
         // DNA drifts to the cell.
         for (const o of this.orbs) {
             o.t += TICK;
             const k = Math.min(1, o.t * 1.6);
             o.x += (this.cell.x - o.x) * 0.06 * (1 + k * 3);
             o.y += (this.cell.y - o.y) * 0.06 * (1 + k * 3);
-            if (dist2(o, this.cell) < 400) { o.v && this.gain(o.v); o.v = 0; }
+            if (dist2(o, this.cell) < 400) { if (o.v) this.gain(o.v); o.v = 0; }
         }
-        this.orbs = this.orbs.filter((o) => o.v > 0);
+        prune(this.orbs, (o) => o.v > 0);
     };
 
     Run.prototype.gain = function (v) {
         this.xp += v * this.mods.xp;
         if (this.xp >= this.need && !this.pending) {
             this.xp -= this.need;
-            this.need = Math.round(this.need * 1.24 + 1);
+            this.need = Math.round(this.need * 1.1 + 1);
             this.level++;
             this.pending = this.offers();
         }
     };
 
-    /** Three different picks: a weapon's next level, a new weapon, or a boost. */
+    /** Three different picks: an evolution, a weapon's next level, a new weapon, or a boost. */
     Run.prototype.offers = function () {
         const pool = [];
-        for (const [w, l] of Object.entries(this.weapons)) if (l < MAX_LEVEL) pool.push({kind: 'up', id: w, level: l + 1, weight: 3});
+        for (const [w, l] of Object.entries(this.weapons)) {
+            if (l < MAX_LEVEL) pool.push({kind: 'up', id: w, level: l + 1, weight: 3});
+            else if (!this.evolved[w] && this.boosts[EVOLVE[w].boost]) pool.push({kind: 'evolve', id: w, level: l, weight: 8});
+        }
         if (Object.keys(this.weapons).length < MAX_WEAPONS) {
             for (const w of this.ch.unlocks) if (!this.weapons[w]) pool.push({kind: 'new', id: w, level: 1, weight: 2});
         }
@@ -496,13 +606,18 @@
     Run.prototype.choose = function (i) {
         const o = this.pending && this.pending[i];
         if (!o) return;
-        if (o.kind !== 'boost') this.weapons[o.id] = o.level;
-        else if (o.id === 'might') this.mods.dmg *= 1.15;
-        else if (o.id === 'haste') this.mods.cd *= 0.9;
-        else if (o.id === 'crit') this.mods.crit += 0.08;
-        else if (o.id === 'reach') this.mods.area *= 1.15;
-        else if (o.id === 'mend') this.core = Math.min(this.coreMax, this.core + 6);
-        else if (o.id === 'learn') this.mods.xp *= 1.2;
+        if (o.kind === 'evolve') this.evolved[o.id] = true;
+        else if (o.kind !== 'boost') this.weapons[o.id] = o.level;
+        else {
+            this.boosts[o.id] = (this.boosts[o.id] || 0) + 1;
+            if (o.id === 'might') this.mods.dmg *= 1.15;
+            else if (o.id === 'haste') this.mods.cd *= 0.9;
+            else if (o.id === 'crit') this.mods.crit += 0.08;
+            else if (o.id === 'reach') this.mods.area *= 1.15;
+            else if (o.id === 'mend') this.core = Math.min(this.coreMax, this.core + 6);
+            else if (o.id === 'learn') this.mods.xp *= 1.2;
+        }
+        this.arm();
         this.pending = null;
         if (this.xp >= this.need) this.gain(0);
     };
@@ -536,6 +651,7 @@
             this.spawn(this.ch.boss, true);
             this.events.push({t: 'boss'});
         }
+        this.index();
         this.fire();
         this.move();
         for (const q of [0.25, 0.5]) {
@@ -567,7 +683,7 @@
     };
     const labCost = (level) => Math.round(60 * Math.pow(1.32, level));
 
-    const api = {W, H, TICK, STEP, WEAPONS, BOOSTS, UNLOCKS, MAX_LEVEL, MAX_WEAPONS, LAB, hashSeed, rng, chapter, gains, Run, coins, labCost};
+    const api = {W, H, TICK, STEP, WEAPONS, EVOLVE, BOOSTS, UNLOCKS, MAX_LEVEL, MAX_WEAPONS, LAB, hashSeed, rng, chapter, gains, statsOf, Run, coins, labCost};
     root.CellsEngine = api;
     if (typeof module !== 'undefined') module.exports = api;
 })(typeof self !== 'undefined' ? self : globalThis);

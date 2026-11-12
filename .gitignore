@@ -55,3 +55,6 @@ server_start_success.tmp
 src/jvmMain/resources/static/output.css
 .env
 src/jvmMain/resources/static/vendor/engine.js
+
+# Source art for the generated sprites (large PNGs); the game ships the WebP copies in static/
+assets/sprites/

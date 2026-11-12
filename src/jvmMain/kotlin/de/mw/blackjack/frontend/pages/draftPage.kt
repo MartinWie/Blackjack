@@ -25,8 +25,9 @@ private fun DIV.toolButton(id: String, label: String, icon: String) {
 }
 
 /**
- * Draft Battle: keep one card of each pair, the other goes to your rival, then the two
- * armies fight it out. Solo against a bot works offline; a room needs the server.
+ * Draft Battle: both players draft an army at once, it grows every round, and the
+ * armies fight it out; a lost battle costs a heart. Solo against a bot works offline;
+ * a room needs the server.
  */
 fun draftPage(): String = buildString {
     append("<!DOCTYPE html>")
@@ -42,7 +43,6 @@ fun draftPage(): String = buildString {
             installable(Apps.draft)
             link(rel = "stylesheet", href = asset("/static/draft/draft.css"))
             script(src = asset("/static/draft/draft-engine.js")) { defer = true }
-            script(src = asset("/static/draft/draft-art.js")) { defer = true }
             script(src = asset("/static/draft/draft.js")) { defer = true }
         }
         body {
@@ -70,7 +70,7 @@ fun draftPage(): String = buildString {
                     id = "home"
                     div(classes = "hero") {
                         div(classes = "hero-art") { id = "hero-art" }
-                        p { +"Keep one card of each pair. The other goes to your rival. Then the armies clash." }
+                        p { +"Pick your army card by card. It grows every round. Three hearts each: lose a battle, lose a heart." }
                     }
                     button(classes = "big-btn") {
                         id = "play-bot"
@@ -118,17 +118,23 @@ fun draftPage(): String = buildString {
                     div(classes = "side them") {
                         div(classes = "who") {
                             span(classes = "avatar") { id = "them-avatar" }
-                            strong { id = "them-name"; +"Rival" }
-                            span(classes = "wins") { id = "them-wins" }
+                            div(classes = "id") {
+                                strong { id = "them-name"; +"Rival" }
+                                span(classes = "status") { id = "them-status" }
+                            }
+                            span(classes = "hearts") { id = "them-hearts"; attributes["role"] = "img" }
                         }
-                        div(classes = "hand") { id = "them-hand" }
                         div(classes = "army") { id = "them-army" }
                     }
                     div(classes = "stage") {
                         id = "stage"
                         div(classes = "draft") {
                             id = "draft"
-                            div(classes = "pool") { id = "pool" }
+                            div(classes = "round-line") {
+                                strong { id = "round-name"; +"Round 1" }
+                                span { id = "pick-line" }
+                            }
+                            p(classes = "comeback") { id = "comeback"; hidden = true; +"Lost the last round: rarer cards for you." }
                             div(classes = "offer") { id = "offer" }
                             p(classes = "prompt") { id = "prompt"; attributes["aria-live"] = "polite" }
                         }
@@ -138,11 +144,13 @@ fun draftPage(): String = buildString {
                     }
                     div(classes = "side you") {
                         div(classes = "army") { id = "you-army" }
-                        div(classes = "hand") { id = "you-hand" }
                         div(classes = "who") {
                             span(classes = "avatar") { id = "you-avatar" }
-                            strong { id = "you-name"; +"You" }
-                            span(classes = "wins") { id = "you-wins" }
+                            div(classes = "id") {
+                                strong { id = "you-name"; +"You" }
+                                span(classes = "status") { id = "you-status" }
+                            }
+                            span(classes = "hearts") { id = "you-hearts"; attributes["role"] = "img" }
                         }
                     }
                 }

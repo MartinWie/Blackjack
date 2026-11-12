@@ -1,32 +1,22 @@
 /**
  * Cell Survivor page. Rules in `cells-engine.js`; this file draws a run on a canvas,
  * offers the level-up picks, and keeps the chapters, coins and the lab in localStorage.
+ *
+ * Drawing is built for a crowded dish: sprites are scaled once to the pixels they are
+ * drawn at, the dish and its channel are one cached layer, needles and trails go out in
+ * one stroke each, and a phone that falls behind drops its canvas resolution a step.
  */
 (function () {
     'use strict';
 
     const E = window.CellsEngine;
     const STORE_KEY = 'cells.v1';
-    const LOOKS = [['#7BC96F', '#4F9A45'], ['#A47BD8', '#7550AE'], ['#F2A65A', '#C77A2E'], ['#E5484D', '#A8262C'], ['#7A4FB5', '#4E2C80']];
-    const TIER = ['#5DBB63', '#5FA0D6', '#9B7BFF', '#F2B544', '#F2B544'];   // a weapon's colour by the level it reaches
-    const ICONS = {
-        pill: '<path d="M9 23 23 9a6 6 0 0 1 8.5 8.5L17.5 31.5A6 6 0 0 1 9 23z" fill="#fff" stroke="#3B2C22" stroke-width="2"/><path d="M16 16l8.5 8.5L31.5 17.5A6 6 0 0 0 23 9z" fill="#E5484D" stroke="#3B2C22" stroke-width="2"/>',
-        scalpel: '<path d="M8 32 22 18" stroke="#8C99A8" stroke-width="5" stroke-linecap="round"/><path d="M20 20 31 7c3 3 2 8-1 11l-6 6z" fill="#E6EDF4" stroke="#3B2C22" stroke-width="2" stroke-linejoin="round"/><circle cx="20" cy="20" r="14" fill="none" stroke="#5FA0D6" stroke-width="2" stroke-dasharray="3 4"/>',
-        swab: '<path d="M10 30 28 12" stroke="#E9DCC4" stroke-width="3" stroke-linecap="round"/><ellipse cx="29" cy="11" rx="6" ry="4.5" transform="rotate(-45 29 11)" fill="#fff" stroke="#3B2C22" stroke-width="2"/><ellipse cx="9" cy="31" rx="5" ry="4" transform="rotate(-45 9 31)" fill="#fff" stroke="#3B2C22" stroke-width="2"/>',
-        bubble: '<circle cx="20" cy="20" r="12" fill="#BDE7FF" stroke="#3B2C22" stroke-width="2"/><path d="M13 16a8 8 0 0 1 6-5" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><circle cx="31" cy="30" r="4" fill="#DDF3FF" stroke="#3B2C22" stroke-width="1.5"/>',
-        needles: '<path d="M8 32 30 10M12 34 33 15M6 28 26 7" stroke="#8C99A8" stroke-width="2.4" stroke-linecap="round"/><circle cx="8" cy="32" r="2.4" fill="#F2B544"/><circle cx="12" cy="34" r="2.4" fill="#F2B544"/><circle cx="6" cy="28" r="2.4" fill="#F2B544"/>',
-        tower: '<path d="M12 34V14h16v20z" fill="#FFF7EA" stroke="#3B2C22" stroke-width="2"/><path d="M10 14l10-8 10 8z" fill="#5FA0D6" stroke="#3B2C22" stroke-width="2" stroke-linejoin="round"/><path d="M18 19h4v4h4v4h-4v4h-4v-4h-4v-4h4z" fill="#E5484D"/>',
-        shock: '<path d="M22 4 10 22h8l-4 14 14-19h-8l6-13z" fill="#FFD25E" stroke="#3B2C22" stroke-width="2" stroke-linejoin="round"/>',
-        satellite: '<circle cx="20" cy="20" r="6" fill="#9CC0FF" stroke="#3B2C22" stroke-width="2"/><path d="M6 8l9 9M25 23l9 9" stroke="#3B2C22" stroke-width="2"/><rect x="2" y="4" width="8" height="5" rx="1" transform="rotate(45 6 6.5)" fill="#5FA0D6" stroke="#3B2C22" stroke-width="1.5"/><rect x="30" y="31" width="8" height="5" rx="1" transform="rotate(45 34 33.5)" fill="#5FA0D6" stroke="#3B2C22" stroke-width="1.5"/>',
-        maw: '<path d="M6 16q14-12 28 0l-4 3-3-3-3 3-4-3-4 3-3-3-3 3z" fill="#7A4FB5" stroke="#3B2C22" stroke-width="2" stroke-linejoin="round"/><path d="M6 24q14 12 28 0l-4-3-3 3-3-3-4 3-4-3-3 3-3-3z" fill="#7A4FB5" stroke="#3B2C22" stroke-width="2" stroke-linejoin="round"/>',
-        might: '<path d="M10 22c0-7 4-12 10-12s10 5 10 12v6H10z" fill="#E5484D" stroke="#3B2C22" stroke-width="2"/><path d="M14 18h12" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>',
-        haste: '<circle cx="20" cy="21" r="12" fill="#FFF7EA" stroke="#3B2C22" stroke-width="2"/><path d="M20 21V13M20 21l6 4" stroke="#3B2C22" stroke-width="2.4" stroke-linecap="round"/><path d="M16 5h8" stroke="#3B2C22" stroke-width="3" stroke-linecap="round"/>',
-        crit: '<circle cx="20" cy="20" r="13" fill="#fff" stroke="#3B2C22" stroke-width="2"/><circle cx="20" cy="20" r="7" fill="#F2B544" stroke="#3B2C22" stroke-width="1.6"/><circle cx="20" cy="20" r="2.4" fill="#E5484D"/>',
-        reach: '<circle cx="20" cy="20" r="14" fill="none" stroke="#5DBB63" stroke-width="2.4" stroke-dasharray="4 3"/><circle cx="20" cy="20" r="6" fill="#5DBB63" stroke="#3B2C22" stroke-width="2"/>',
-        mend: '<path d="M20 33S7 25 7 15a7 7 0 0 1 13-3 7 7 0 0 1 13 3c0 10-13 18-13 18z" fill="#E5484D" stroke="#3B2C22" stroke-width="2" stroke-linejoin="round"/><path d="M17 18h6M20 15v6" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>',
-        learn: '<path d="M13 6c8 7 6 21 14 28M27 6c-8 7-6 21-14 28" fill="none" stroke="#5FA0D6" stroke-width="2.6" stroke-linecap="round"/><path d="M15 12h10M14 20h12M15 28h10" stroke="#F2B544" stroke-width="2.4" stroke-linecap="round"/>',
-    };
-    const icon = (id) => `<svg viewBox="0 0 40 40" aria-hidden="true">${ICONS[id] || ''}</svg>`;
+    const LOOKS = ['green', 'purple', 'orange', 'red', 'boss'];
+    const GOO = ['#8BD97F', '#B98BE8', '#F7B26A', '#F2646A', '#A06BE0'];
+    const TIER = ['#5DBB63', '#5DBB63', '#5FA0D6', '#5FA0D6', '#9B7BFF', '#9B7BFF', '#F2B544', '#F2B544'];   // a weapon's colour by level
+    const BUILD = (new URL(document.querySelector('script[src*="cells-engine.js"]').src).searchParams.get('v')) || '';
+    const IMG = (name) => `/static/cells/img/${name}.webp${BUILD ? `?v=${BUILD}` : ''}`;
+    const icon = (id) => `<img src="${IMG(id)}" alt="" draggable="false">`;
 
     const $ = (id) => document.getElementById(id);
     const els = {
@@ -53,6 +43,65 @@
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');
     const calm = () => reduced.matches;
 
+    // --- pictures ----------------------------------------------------------------------------
+
+    const heads = LOOKS.map((l) => `virus-${l}`), bodies = LOOKS.map((l) => `body-${l}`);
+    const NAMES = ['dish', 'hero', 'heart', 'pill', 'scalpel', 'bubble', 'tower', 'satellite', 'maw', 'dna', 'swab',
+        ...LOOKS.flatMap((l) => [`virus-${l}`, `body-${l}`])];
+    const pics = {};
+    let loaded = null;
+    function loadPics() {
+        if (loaded) return loaded;
+        loaded = Promise.all(NAMES.map(async (n) => {
+            const img = new Image();
+            img.src = IMG(n);
+            try { await img.decode(); pics[n] = img; } catch (_) { /* drawn without it */ }
+        }));
+        return loaded;
+    }
+
+    // Sprites scaled once to the device pixels they are drawn at, in 4 px steps so a
+    // pulse or a beat reuses the same few; dropped on a resize.
+    const scaled = new Map(), whites = new Map();
+    function sized(name, px, white = false) {
+        px = Math.max(4, Math.round(px / 4) * 4);
+        const store = white ? whites : scaled;
+        let byPx = store.get(name);
+        if (!byPx) { byPx = new Map(); store.set(name, byPx); }
+        let c = byPx.get(px);
+        if (c) return c;
+        const img = pics[name];
+        if (!img) return null;
+        c = document.createElement('canvas');
+        c.width = px;
+        c.height = Math.max(4, Math.round((px * img.naturalHeight) / img.naturalWidth));
+        const g = c.getContext('2d');
+        g.imageSmoothingQuality = 'high';
+        g.drawImage(img, 0, 0, c.width, c.height);
+        if (white) {
+            g.globalCompositeOperation = 'source-in';
+            g.fillStyle = '#fff';
+            g.fillRect(0, 0, c.width, c.height);
+        }
+        byPx.set(px, c);
+        return c;
+    }
+
+    /** A soft round glow in one colour, for particles and auras, drawn once. */
+    const glows = new Map();
+    function glow(colour) {
+        let c = glows.get(colour);
+        if (c) return c;
+        c = document.createElement('canvas');
+        c.width = c.height = 32;
+        const g = c.getContext('2d'), grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+        grad.addColorStop(0, colour); grad.addColorStop(0.45, colour); grad.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = grad;
+        g.fillRect(0, 0, 32, 32);
+        glows.set(colour, c);
+        return c;
+    }
+
     // --- home ------------------------------------------------------------------------------
 
     function renderHome() {
@@ -65,6 +114,7 @@
         els.prevCh.disabled = n <= 1;
         els.nextCh.disabled = n >= store.reached;
         drawPreview(ch);
+        loadPics().then(() => { if (els.run.hidden && store.chapter === n) drawPreview(ch); });
     }
 
     function drawPreview(ch) {
@@ -76,136 +126,61 @@
         g.setTransform(k, 0, 0, k, (c.width - E.W * k) / 2, (c.height - E.H * k) / 2);
         // The dish with rounded corners, so the card around it shows its shape.
         g.beginPath();
-        g.roundRect(0, 0, E.W, E.H, 46);
+        if (g.roundRect) g.roundRect(0, 0, E.W, E.H, 46); else g.rect(0, 0, E.W, E.H);
         g.clip();
         paintDish(g, ch);
-        drawCell(g, ch.cell.x, ch.cell.y, 0, false);
+        const hero = pics.hero;
+        if (hero) g.drawImage(hero, ch.cell.x - 34, ch.cell.y - 34, 68, 68);
     }
 
     // --- drawing ------------------------------------------------------------------------------
 
-    /** The dish: agar, colonies, the channel, the hole viruses come from and the core. */
+    /** The dish under everything: agar, the channel, the hole viruses come from. */
     function paintDish(g, ch) {
-        const agar = g.createRadialGradient(E.W / 2, E.H * 0.45, 40, E.W / 2, E.H / 2, E.H * 0.7);
-        agar.addColorStop(0, '#FFF6E6'); agar.addColorStop(1, '#F6DFC3');
-        g.fillStyle = agar;
-        g.fillRect(-60, -60, E.W + 120, E.H + 120);
-        let seed = 11;
-        const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-        for (let k = 0; k < 40; k++) {
-            g.fillStyle = ['rgba(240, 190, 140, .35)', 'rgba(200, 220, 170, .35)', 'rgba(250, 210, 220, .35)'][k % 3];
-            g.beginPath(); g.arc(rnd() * E.W, rnd() * E.H, 4 + rnd() * 14, 0, Math.PI * 2); g.fill();
+        const bg = pics.dish;
+        g.save();
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        if (bg) {
+            // Cover the whole canvas, cropping the picture rather than leaving bars.
+            const s = Math.max(g.canvas.width / bg.naturalWidth, g.canvas.height / bg.naturalHeight);
+            g.drawImage(bg, (g.canvas.width - bg.naturalWidth * s) / 2, (g.canvas.height - bg.naturalHeight * s) / 2, bg.naturalWidth * s, bg.naturalHeight * s);
+        } else {
+            g.fillStyle = '#F6DFC3';
+            g.fillRect(0, 0, g.canvas.width, g.canvas.height);
         }
+        g.restore();
         const path = ch.path;
-        const stroke = (w, colour) => {
-            g.strokeStyle = colour; g.lineWidth = w; g.lineCap = 'round'; g.lineJoin = 'round';
+        const stroke = (width, colour) => {
+            g.strokeStyle = colour; g.lineWidth = width; g.lineCap = 'round'; g.lineJoin = 'round';
             g.beginPath(); g.moveTo(path[0].x, path[0].y);
             for (let i = 1; i < path.length; i += 2) g.lineTo(path[i].x, path[i].y);
             g.lineTo(path[path.length - 1].x, path[path.length - 1].y);
             g.stroke();
         };
-        stroke(58, '#E9C9A2');
-        stroke(46, '#F3D9B9');
+        stroke(66, 'rgba(120, 70, 110, .16)');
+        stroke(58, 'rgba(255, 236, 244, .75)');
+        stroke(44, 'rgba(255, 248, 250, .85)');
         g.setLineDash([2, 18]);
-        stroke(4, 'rgba(180, 130, 90, .35)');
+        stroke(4, 'rgba(190, 120, 150, .35)');
         g.setLineDash([]);
-        const end = path[path.length - 1];
-        // The core: a heart that must not be reached.
-        g.save();
-        g.translate(end.x, end.y + 10);
-        g.fillStyle = '#E5484D'; g.strokeStyle = '#3B2C22'; g.lineWidth = 3;
-        g.beginPath();
-        g.moveTo(0, 26);
-        g.bezierCurveTo(-46, -4, -30, -40, 0, -18);
-        g.bezierCurveTo(30, -40, 46, -4, 0, 26);
-        g.fill(); g.stroke();
-        g.fillStyle = '#3B2C22';
-        g.beginPath(); g.arc(-9, -6, 3, 0, Math.PI * 2); g.arc(9, -6, 3, 0, Math.PI * 2); g.fill();
-        g.restore();
-    }
-
-    const sprites = new Map();
-    /** A virus segment, drawn once per look and size and reused. */
-    function virusSprite(look, r, head) {
-        const key = `${look}:${Math.round(r)}:${head}`;
-        if (sprites.has(key)) return sprites.get(key);
-        const s = 3, size = Math.ceil((r + 10) * 2 * s);
-        const c = document.createElement('canvas');
-        c.width = c.height = size;
-        const g = c.getContext('2d');
-        g.scale(s, s);
-        g.translate(size / s / 2, size / s / 2);
-        const [fill, dark] = LOOKS[look];
-        g.strokeStyle = '#3B2C22'; g.lineWidth = 1.8;
-        for (let k = 0; k < 8; k++) {
-            const a = (k / 8) * Math.PI * 2;
-            g.beginPath();
-            g.moveTo(Math.cos(a) * r * 0.8, Math.sin(a) * r * 0.8);
-            g.lineTo(Math.cos(a) * (r + 6), Math.sin(a) * (r + 6));
-            g.stroke();
-            g.fillStyle = dark;
-            g.beginPath(); g.arc(Math.cos(a) * (r + 6), Math.sin(a) * (r + 6), 2.6, 0, Math.PI * 2); g.fill(); g.stroke();
-        }
-        g.fillStyle = fill;
-        g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill(); g.stroke();
-        g.fillStyle = 'rgba(255,255,255,.35)';
-        g.beginPath(); g.arc(-r * 0.35, -r * 0.4, r * 0.3, 0, Math.PI * 2); g.fill();
-        if (head) {
-            g.fillStyle = '#fff';
-            g.beginPath(); g.arc(-r * 0.35, -r * 0.05, r * 0.28, 0, Math.PI * 2); g.arc(r * 0.35, -r * 0.05, r * 0.28, 0, Math.PI * 2); g.fill();
-            g.fillStyle = '#3B2C22';
-            g.beginPath(); g.arc(-r * 0.3, 0, r * 0.13, 0, Math.PI * 2); g.arc(r * 0.3, 0, r * 0.13, 0, Math.PI * 2); g.fill();
-            g.lineWidth = 2;
-            g.beginPath(); g.moveTo(-r * 0.6, -r * 0.45); g.lineTo(-r * 0.15, -r * 0.3); g.moveTo(r * 0.6, -r * 0.45); g.lineTo(r * 0.15, -r * 0.3); g.stroke();
-            g.beginPath(); g.arc(0, r * 0.45, r * 0.18, Math.PI, 0); g.stroke();
-        } else {
-            g.fillStyle = dark;
-            g.beginPath(); g.arc(r * 0.25, r * 0.2, r * 0.18, 0, Math.PI * 2); g.arc(-r * 0.2, r * 0.35, r * 0.12, 0, Math.PI * 2); g.fill();
-        }
-        sprites.set(key, c);
-        return c;
-    }
-
-    /** Our hero: a white blood cell, wobbling a little; a glow when the burst is ready. */
-    function drawCell(g, x, y, t, ready) {
-        const wob = calm() ? 0 : Math.sin(t * 4) * 1.5;
-        g.save();
-        g.translate(x, y);
-        if (ready) {
-            g.fillStyle = `rgba(110, 200, 255, ${0.25 + 0.15 * Math.sin(t * 6)})`;
-            g.beginPath(); g.arc(0, 0, 44, 0, Math.PI * 2); g.fill();
-        }
-        g.fillStyle = 'rgba(60, 40, 20, .18)';
-        g.beginPath(); g.ellipse(0, 26, 24, 7, 0, 0, Math.PI * 2); g.fill();
-        g.fillStyle = '#FFFFFF'; g.strokeStyle = '#3B2C22'; g.lineWidth = 2.6;
-        g.beginPath();
-        for (let k = 0; k <= 24; k++) {
-            const a = (k / 24) * Math.PI * 2, rr = 26 + Math.sin(a * 5 + t * 3) * 1.6 + wob * 0.4;
-            const px = Math.cos(a) * rr, py = Math.sin(a) * (rr - wob);
-            k ? g.lineTo(px, py) : g.moveTo(px, py);
-        }
-        g.closePath(); g.fill(); g.stroke();
-        g.fillStyle = '#F7C8D2';
-        g.beginPath(); g.arc(-12, 6, 4.5, 0, Math.PI * 2); g.arc(12, 6, 4.5, 0, Math.PI * 2); g.fill();
-        g.fillStyle = '#3B2C22';
-        g.beginPath(); g.arc(-8, -3, 3.6, 0, Math.PI * 2); g.arc(8, -3, 3.6, 0, Math.PI * 2); g.fill();
-        g.fillStyle = '#fff';
-        g.beginPath(); g.arc(-7, -4.5, 1.3, 0, Math.PI * 2); g.arc(9, -4.5, 1.3, 0, Math.PI * 2); g.fill();
-        g.beginPath(); g.arc(0, 6, 4, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
-        g.fillStyle = '#E5484D';
-        g.fillRect(-4, -26, 8, 8);
-        g.fillStyle = '#fff';
-        g.fillRect(-1.2, -25, 2.4, 6); g.fillRect(-3, -23.2, 6, 2.4);
-        g.restore();
+        // Where they come in.
+        const start = path[0];
+        const hole = g.createRadialGradient(start.x, 20, 4, start.x, 20, 60);
+        hole.addColorStop(0, 'rgba(90, 40, 80, .55)'); hole.addColorStop(1, 'rgba(90, 40, 80, 0)');
+        g.fillStyle = hole;
+        g.beginPath(); g.arc(start.x, 20, 60, 0, Math.PI * 2); g.fill();
     }
 
     // --- the run -------------------------------------------------------------------------------
 
     let run = null, raf = 0, last = 0, acc = 0, paused = false;
-    let fx = [], shake = 0, dish = null, still = false;
+    let fx = [], shake = 0, dish = null, still = false, layout = null;
+    // Canvas resolution as a share of the device's; lowered a step when frames run long.
+    let quality = 1, slow = 0;
 
-    function startRun() {
+    async function startRun() {
         const n = store.chapter;
+        await loadPics();
         run = new E.Run(n, store.lab, Date.now() >>> 0);
         fx = []; acc = 0; shake = 0; paused = false; still = false; shown = {};
         dish = null;
@@ -236,7 +211,8 @@
     function frame(now) {
         raf = requestAnimationFrame(frame);
         if (!run) return;
-        const dt = Math.min(0.1, (now - last) / 1000);
+        const ms = now - last;
+        const dt = Math.min(0.1, ms / 1000);
         last = now;
         const playing = !paused && !run.pending && !run.over && !document.hidden;
         if (playing) {
@@ -246,6 +222,9 @@
                 acc -= E.TICK;
                 for (const ev of run.events) collect(ev);
             }
+            // Two seconds of long frames: draw fewer pixels.
+            slow = ms > 24 ? slow + 1 : Math.max(0, slow - 2);
+            if (slow > 120 && quality > 0.55) { quality = Math.max(0.55, quality - 0.15); slow = 0; layout = null; }
         }
         // The end beats a level-up that came with it; a pick that levels again asks again.
         if (els.overlay.hidden) {
@@ -260,33 +239,73 @@
         hud();
     }
 
-    function collect(ev) {
-        const t = run.t;
-        if (ev.t === 'pop') {
-            for (let k = 0; k < (ev.r > 20 ? 14 : 6); k++) {
-                const a = Math.random() * Math.PI * 2, v = 40 + Math.random() * 90;
-                fx.push({t: 'goo', x: ev.x, y: ev.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, born: t, life: 0.5, r: 2 + Math.random() * 3});
-            }
-        } else if (ev.t === 'hit' && ev.crit && ev.n >= 5 && ev.from !== 'swab') fx.push({t: 'text', x: ev.x, y: ev.y - 16, text: `${ev.n}!`, born: t, life: 0.6});
-        else if (ev.t === 'shock' || ev.t === 'laser' || ev.t === 'zap' || ev.t === 'bite' || ev.t === 'burst') fx.push({...ev, born: t, life: ev.t === 'bite' ? 0.35 : ev.t === 'burst' ? 0.35 : 0.18, seed: Math.random()});
-        else if (ev.t === 'leak') { shake = 0.3; fx.push({t: 'leakflash', born: t, life: 0.5}); }
-        else if (ev.t === 'burst-all') fx.push({t: 'wave', born: t, life: 0.8});
-        else if (ev.t === 'boss') banner('Boss!');
-        else if (ev.t === 'midboss') banner('A big one!');
-        else if (ev.t === 'chest') {
-            const mark = els.chestMarks.querySelector(`[data-q="${ev.q}"]`);
-            if (mark) mark.classList.add('open');
-            if (ev.q < 1) banner('Chest!');
+    const rand = (a, b) => a + Math.random() * (b - a);
+    const MAX_FX = 340;
+
+    function particles(x, y, n, colour, speed, life, size) {
+        const room = MAX_FX - fx.length;
+        if (room <= 0) return;
+        n = Math.min(n, room);
+        for (let k = 0; k < n; k++) {
+            const a = rand(0, Math.PI * 2), v = rand(speed * 0.4, speed);
+            fx.push({t: 'p', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, born: run.t, life: rand(life * 0.6, life), r: rand(size * 0.6, size), colour});
         }
-        if (fx.length > 260) fx.splice(0, fx.length - 260);
     }
 
+    let texts = 0;
+    function collect(ev) {
+        const t = run.t;
+        switch (ev.t) {
+            case 'pop':
+                // A crowded dish gets fewer drops per pop, so a chain reaction stays smooth.
+                particles(ev.x, ev.y, ev.r > 20 ? 16 : fx.length > 200 ? 2 : 6, GOO[ev.look || 0], ev.r > 20 ? 150 : 110, 0.55, ev.r > 20 ? 7 : 4.5);
+                fx.push({t: 'ring', x: ev.x, y: ev.y, r: ev.r * 1.6, born: t, life: 0.3, colour: 'rgba(255,255,255,'});
+                break;
+            case 'hit':
+                if (ev.n >= 5 && texts < 24) { texts++; fx.push({t: 'text', x: ev.x, y: ev.y - 16, text: `${ev.n}!`, born: t, life: 0.6}); }
+                break;
+            case 'shock': case 'laser': case 'zap':
+                fx.push({...ev, born: t, life: ev.t === 'shock' ? 0.22 : 0.16, seed: Math.random()});
+                break;
+            case 'bite':
+                fx.push({...ev, born: t, life: 0.4});
+                break;
+            case 'burst':
+                fx.push({t: 'ring', x: ev.x, y: ev.y, r: ev.r, born: t, life: 0.35, colour: ev.pill ? 'rgba(255,140,150,' : 'rgba(150,215,255,'});
+                if (!ev.pill) particles(ev.x, ev.y, 4, '#DDF3FF', 120, 0.4, 4);
+                break;
+            case 'chain':
+                fx.push({t: 'ring', x: ev.x, y: ev.y, r: ev.r, born: t, life: 0.3, colour: 'rgba(255,170,70,'});
+                fx.push({t: 'glow', x: ev.x, y: ev.y, r: ev.r, born: t, life: 0.25, colour: '#FFB347'});
+                break;
+            case 'leak':
+                shake = 0.3;
+                fx.push({t: 'leakflash', born: t, life: 0.5});
+                break;
+            case 'burst-all': fx.push({t: 'wave', born: t, life: 0.8}); break;
+            case 'boss': banner('Boss!'); break;
+            case 'midboss': banner('A big one!'); break;
+            case 'chest': {
+                const mark = els.chestMarks.querySelector(`[data-q="${ev.q}"]`);
+                if (mark) mark.classList.add('open');
+                if (ev.q < 1) banner('Chest!');
+                break;
+            }
+        }
+    }
+
+    /** Canvas size and the field's place on it; redone on a resize or a change of quality. */
     function fit() {
-        const c = els.field, r = c.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
+        const c = els.field, r = c.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1) * quality;
         const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
-        if (c.width !== w || c.height !== h) { c.width = w; c.height = h; dish = null; }
+        if (layout && layout.w === w && layout.h === h) return layout;
+        if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
         const k = Math.min(w / E.W, h / E.H);
-        return {k, ox: (w - E.W * k) / 2, oy: (h - E.H * k) / 2, w, h};
+        dish = null;
+        scaled.clear();
+        whites.clear();
+        layout = {k, ox: (w - E.W * k) / 2, oy: (h - E.H * k) / 2, w, h};
+        return layout;
     }
 
     function draw(alpha) {
@@ -296,150 +315,205 @@
             dish = document.createElement('canvas');
             dish.width = w; dish.height = h;
             const d = dish.getContext('2d');
-            d.fillStyle = '#F6DFC3';
-            d.fillRect(0, 0, w, h);
             d.setTransform(k, 0, 0, k, ox, oy);
             paintDish(d, run.ch);
         }
         const sx = shake > 0 && !calm() ? (Math.random() - 0.5) * 8 * shake : 0;
         shake = Math.max(0, shake - 1 / 60);
-        g.setTransform(1, 0, 0, 1, sx, 0);
-        g.drawImage(dish, 0, 0);
-        g.setTransform(k, 0, 0, k, ox + sx, oy);
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.globalAlpha = 1;
+        g.drawImage(dish, sx, 0);
+        const X = ox + sx;
+        const base = () => g.setTransform(k, 0, 0, k, X, oy);
+        base();
         const t = run.t;
+        /** A sprite of `size` units at (x, y), drawn `grow` times bigger (a pulse, a beat). */
+        const sprite = (name, size, x, y, white = false, grow = 1) => {
+            const s = sized(name, size * k, white);
+            if (!s) return;
+            const w = size * grow, hh = (w * s.height) / s.width;
+            g.drawImage(s, x - w / 2, y - hh / 2, w, hh);
+        };
+        /** A sprite turned by `a` about (x, y), without save and restore. */
+        const turned = (name, size, x, y, a, grow = 1) => {
+            const s = sized(name, size * k);
+            if (!s) return;
+            const cs = Math.cos(a) * k * grow, sn = Math.sin(a) * k * grow;
+            g.setTransform(cs, sn, -sn, cs, X + x * k, oy + y * k);
+            g.drawImage(s, -size / 2, -size / 2, size, size);
+        };
 
-        // Swabs and towers sit under everything.
+        // The heart at the end of the channel, beating faster when it is hurt.
+        const end = run.ch.path[run.ch.path.length - 1];
+        const beat = calm() ? 1 : 1 + Math.max(0, Math.sin(t * (run.core < run.coreMax * 0.3 ? 10 : 5))) * 0.08;
+        sprite('heart', 70, end.x, end.y + 6, false, beat);
+
+        // Swabs and towers sit under the viruses.
         for (const z of run.zones) {
             const life = 1 - z.age / z.life;
-            g.fillStyle = `rgba(255, 255, 255, ${0.55 * life + 0.15})`;
-            g.beginPath(); g.arc(z.x, z.y, z.r, 0, Math.PI * 2); g.fill();
-            g.strokeStyle = `rgba(150, 190, 230, ${0.6 * life})`; g.lineWidth = 3; g.setLineDash([6, 6]);
-            g.beginPath(); g.arc(z.x, z.y, z.r * (0.8 + 0.2 * Math.sin(t * 8)), 0, Math.PI * 2); g.stroke();
-            g.setLineDash([]);
+            g.globalAlpha = 0.35 + 0.4 * life;
+            g.drawImage(glow('rgba(225, 245, 255, .9)'), z.x - z.r, z.y - z.r, z.r * 2, z.r * 2);
+            g.globalAlpha = 1;
+            turned('swab', 40, z.x, z.y, t * 3 + z.x);
+            base();
         }
-        for (const tw of run.towers) {
-            g.save(); g.translate(tw.x, tw.y);
-            g.fillStyle = '#FFF7EA'; g.strokeStyle = '#3B2C22'; g.lineWidth = 2;
-            g.fillRect(-11, -8, 22, 22); g.strokeRect(-11, -8, 22, 22);
-            g.fillStyle = '#5FA0D6';
-            g.beginPath(); g.moveTo(-14, -8); g.lineTo(0, -20); g.lineTo(14, -8); g.closePath(); g.fill(); g.stroke();
-            g.fillStyle = '#E5484D'; g.fillRect(-2, -3, 4, 12); g.fillRect(-6, 1, 12, 4);
-            g.restore();
-        }
+        for (const tw of run.towers) sprite('tower', 44, tw.x, tw.y - 8);
 
-        // Viruses, tail first so heads sit on top.
+        // Viruses, tail first so heads sit on top; bodies turn slowly, a hit flashes white.
         for (const ch of run.chains) {
             for (let i = ch.segs.length - 1; i >= 0; i--) {
                 const s = ch.segs[i];
                 if (s.d < 0 || s.hp <= 0) continue;
                 const x = s.px + (s.x - s.px) * alpha, y = s.py + (s.y - s.py) * alpha;
-                const sp = virusSprite(ch.look, s.r, i === 0);
-                const size = sp.width / 3;
-                const pulse = calm() ? 1 : 1 + Math.sin(t * 6 + s.id) * 0.04;
-                g.drawImage(sp, x - (size * pulse) / 2, y - (size * pulse) / 2, size * pulse, size * pulse);
-                if (s.r > 20 || s.hp < s.max * 0.999 && i === 0) {
+                const head = i === 0;
+                const pulse = calm() ? 1 : 1 + Math.sin(t * 6 + s.id) * 0.05;
+                const size = s.r * (head ? 2.7 : 2.5);
+                const flash = s.seen !== undefined && s.hp < s.seen;
+                s.seen = s.hp;
+                if (head) {
+                    sprite(heads[ch.look], size, x, y, false, pulse);
+                    if (flash) { g.globalAlpha = 0.5; sprite(heads[ch.look], size, x, y, true, pulse); g.globalAlpha = 1; }
+                } else {
+                    turned(bodies[ch.look], size, x, y, t * 0.9 + s.id, pulse);
+                    if (flash) { g.globalAlpha = 0.5; const s2 = sized(bodies[ch.look], size * k, true); if (s2) g.drawImage(s2, -size / 2, -size / 2, size, size); g.globalAlpha = 1; }
+                    base();
+                }
+                if (s.r > 20 || (head && s.hp < s.max * 0.999)) {
                     const bw = s.r * 2;
-                    g.fillStyle = 'rgba(59, 44, 34, .35)'; g.fillRect(x - bw / 2, y - s.r - 14, bw, 4);
-                    g.fillStyle = '#E5484D'; g.fillRect(x - bw / 2, y - s.r - 14, (bw * s.hp) / s.max, 4);
+                    g.fillStyle = 'rgba(59, 44, 34, .4)'; g.fillRect(x - bw / 2, y - s.r - 16, bw, 5);
+                    g.fillStyle = s.r > 20 ? '#F2B544' : '#E5484D'; g.fillRect(x - bw / 2, y - s.r - 16, (bw * s.hp) / s.max, 5);
                 }
             }
         }
 
         // DNA drifting home.
-        for (const o of run.orbs) {
-            g.save(); g.translate(o.x, o.y); g.rotate(t * 4 + o.x);
-            g.strokeStyle = '#5FA0D6'; g.lineWidth = 2.2;
-            g.beginPath(); g.moveTo(-5, -5); g.quadraticCurveTo(5, 0, -5, 5); g.moveTo(5, -5); g.quadraticCurveTo(-5, 0, 5, 5); g.stroke();
-            g.restore();
-        }
+        for (const o of run.orbs) sprite('dna', o.v > 8 ? 24 : 16, o.x, o.y + Math.sin(t * 6 + o.x) * 2);
 
         // The cell and what circles it.
         const cell = run.cell;
-        const sc = run.weapons.scalpel ? E.WEAPONS.scalpel.stats(run.weapons.scalpel) : null;
-        drawCell(g, cell.x, cell.y, t, run.charge >= 1);
+        if (run.charge >= 1) {
+            g.globalAlpha = 0.5 + 0.2 * Math.sin(t * 6);
+            g.drawImage(glow('rgba(110, 200, 255, .9)'), cell.x - 60, cell.y - 60, 120, 120);
+            g.globalAlpha = 1;
+        }
+        const wob = calm() ? 0 : Math.sin(t * 4) * 2;
+        sprite('hero', 66, cell.x, cell.y, false, 1 + wob / 66);
+        const armed = new Map(run.armed);
+        const sc = armed.get('scalpel');
         if (sc) {
             const R = sc.radius * run.mods.area;
             for (let b = 0; b < sc.blades; b++) {
                 const a = t * sc.spin + (b * Math.PI * 2) / sc.blades;
-                g.save(); g.translate(cell.x + Math.cos(a) * R, cell.y + Math.sin(a) * R); g.rotate(a + Math.PI / 2);
-                g.fillStyle = '#E6EDF4'; g.strokeStyle = '#3B2C22'; g.lineWidth = 2;
-                g.beginPath(); g.moveTo(0, -16); g.quadraticCurveTo(9, -4, 3, 10); g.lineTo(-3, 10); g.quadraticCurveTo(-5, -6, 0, -16); g.fill(); g.stroke();
-                g.fillStyle = '#8C99A8'; g.fillRect(-2.5, 10, 5, 8);
-                g.restore();
+                turned('scalpel', 34, cell.x + Math.cos(a) * R, cell.y + Math.sin(a) * R, a + Math.PI * 0.85);
             }
+            base();
         }
-        if (run.weapons.satellite) {
-            const st = E.WEAPONS.satellite.stats(run.weapons.satellite);
+        const st = armed.get('satellite');
+        if (st) {
             for (let s2 = 0; s2 < st.count; s2++) {
                 const a = t * 1.6 + (s2 * Math.PI * 2) / st.count;
-                const x = cell.x + Math.cos(a) * 130, y = cell.y + Math.sin(a) * 130;
-                g.fillStyle = '#9CC0FF'; g.strokeStyle = '#3B2C22'; g.lineWidth = 2;
-                g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fill(); g.stroke();
-                g.fillStyle = '#5FA0D6';
-                g.fillRect(x - 17, y - 3, 8, 6); g.fillRect(x + 9, y - 3, 8, 6);
+                sprite('satellite', 30, cell.x + Math.cos(a) * 130, cell.y + Math.sin(a) * 130);
             }
         }
 
-        // Shots.
+        // Shots: trails and needles in one stroke each, pills and bubbles as sprites.
+        g.lineCap = 'round';
+        g.strokeStyle = 'rgba(255, 255, 255, .45)';
+        g.lineWidth = 5;
+        g.beginPath();
+        for (const sh of run.shots) {
+            if (sh.kind !== 'pill') continue;
+            const x = sh.x - sh.vx * E.TICK * (1 - alpha), y = sh.y - sh.vy * E.TICK * (1 - alpha);
+            g.moveTo(x, y); g.lineTo(x - sh.vx * 0.035, y - sh.vy * 0.035);
+        }
+        g.stroke();
+        g.strokeStyle = '#8C99A8';
+        g.lineWidth = 2.2;
+        g.beginPath();
+        for (const sh of run.shots) {
+            if (sh.kind !== 'needle') continue;
+            const x = sh.x - sh.vx * E.TICK * (1 - alpha), y = sh.y - sh.vy * E.TICK * (1 - alpha);
+            g.moveTo(x, y); g.lineTo(x - Math.cos(sh.a) * 16, y - Math.sin(sh.a) * 16);
+        }
+        g.stroke();
         for (const sh of run.shots) {
             const x = sh.x - sh.vx * E.TICK * (1 - alpha), y = sh.y - sh.vy * E.TICK * (1 - alpha);
-            if (sh.kind === 'pill') {
-                g.save(); g.translate(x, y); g.rotate(sh.a);
-                g.fillStyle = '#fff'; g.strokeStyle = '#3B2C22'; g.lineWidth = 1.6;
-                g.beginPath(); g.ellipse(0, 0, 9, 4.5, 0, 0, Math.PI * 2); g.fill(); g.stroke();
-                g.fillStyle = '#E5484D';
-                g.beginPath(); g.ellipse(4, 0, 5, 4.5, 0, -Math.PI / 2, Math.PI / 2); g.fill();
-                g.restore();
-            } else if (sh.kind === 'needle') {
-                g.strokeStyle = '#8C99A8'; g.lineWidth = 2;
-                g.beginPath(); g.moveTo(x, y); g.lineTo(x - Math.cos(sh.a) * 14, y - Math.sin(sh.a) * 14); g.stroke();
-            } else if (sh.kind === 'bubble') {
-                g.fillStyle = 'rgba(189, 231, 255, .55)'; g.strokeStyle = 'rgba(80, 140, 190, .9)'; g.lineWidth = 2;
-                g.beginPath(); g.arc(x, y, 13, 0, Math.PI * 2); g.fill(); g.stroke();
-                g.strokeStyle = '#fff'; g.lineWidth = 2.5;
-                g.beginPath(); g.arc(x, y, 8, Math.PI * 1.1, Math.PI * 1.5); g.stroke();
-            }
+            if (sh.kind === 'pill') turned('pill', 22, x, y, sh.a + 0.75);
+            else if (sh.kind === 'bubble') { base(); sprite('bubble', sh.small ? 18 : 28, x, y); }
         }
+        base();
 
         // Effects.
+        texts = 0;
         g.font = '900 18px ui-rounded, system-ui';
         g.textAlign = 'center';
         for (let i = fx.length - 1; i >= 0; i--) {
             const f = fx[i], age = (t - f.born) / f.life;
-            if (age >= 1 || age < 0) { fx.splice(i, 1); continue; }
+            if (age >= 1 || age < 0) { fx[i] = fx[fx.length - 1]; fx.pop(); continue; }
             const fade = 1 - age;
-            if (f.t === 'goo') {
-                g.fillStyle = `rgba(110, 180, 90, ${fade})`;
-                g.beginPath(); g.arc(f.x + f.vx * age * f.life, f.y + f.vy * age * f.life, f.r, 0, Math.PI * 2); g.fill();
-            } else if (f.t === 'text') {
-                g.fillStyle = `rgba(229, 72, 77, ${fade})`;
-                g.fillText(f.text, f.x, f.y - age * 20);
-            } else if (f.t === 'shock') {
-                g.strokeStyle = `rgba(255, 210, 94, ${fade})`; g.lineWidth = 4; g.lineJoin = 'round';
-                g.beginPath();
-                f.path.forEach((p, j) => { const jx = j ? Math.sin(f.seed * 50 + j) * 8 : 0; j ? g.lineTo(p.x + jx, p.y - jx) : g.moveTo(p.x, p.y); });
-                g.stroke();
-            } else if (f.t === 'laser' || f.t === 'zap') {
-                g.strokeStyle = f.t === 'laser' ? `rgba(229, 72, 77, ${fade})` : `rgba(95, 160, 214, ${fade})`; g.lineWidth = f.t === 'laser' ? 4 : 3;
-                g.beginPath(); g.moveTo(f.x0, f.y0); g.lineTo(f.x1, f.y1); g.stroke();
-            } else if (f.t === 'bite') {
-                const open = Math.sin(age * Math.PI) * 10;
-                g.fillStyle = `rgba(122, 79, 181, ${fade})`;
-                g.beginPath(); g.ellipse(f.x, f.y - 6 - open, 20, 8, 0, Math.PI, 0); g.fill();
-                g.beginPath(); g.ellipse(f.x, f.y + 6 + open, 20, 8, 0, 0, Math.PI); g.fill();
-            } else if (f.t === 'burst') {
-                g.strokeStyle = `rgba(120, 190, 240, ${fade})`; g.lineWidth = 4;
-                g.beginPath(); g.arc(f.x, f.y, f.r * (0.4 + 0.6 * age), 0, Math.PI * 2); g.stroke();
-            } else if (f.t === 'wave') {
-                g.strokeStyle = `rgba(110, 200, 255, ${fade})`; g.lineWidth = 14;
-                g.beginPath(); g.arc(cell.x, cell.y, 40 + age * 900, 0, Math.PI * 2); g.stroke();
-            } else if (f.t === 'leakflash') {
-                g.setTransform(1, 0, 0, 1, 0, 0);
-                g.fillStyle = `rgba(229, 72, 77, ${0.18 * fade})`;
-                g.fillRect(0, 0, w, h);
-                g.setTransform(k, 0, 0, k, ox + sx, oy);
+            switch (f.t) {
+                case 'p': {
+                    const a = age * f.life, r = f.r * (1 - age * 0.5);
+                    g.globalAlpha = fade;
+                    g.drawImage(glow(f.colour), f.x + f.vx * a - r, f.y + f.vy * a - r, r * 2, r * 2);
+                    break;
+                }
+                case 'text':
+                    texts++;
+                    g.globalAlpha = fade;
+                    g.fillStyle = '#E5484D';
+                    g.strokeStyle = '#fff';
+                    g.lineWidth = 4;
+                    g.strokeText(f.text, f.x, f.y - age * 22);
+                    g.fillText(f.text, f.x, f.y - age * 22);
+                    break;
+                case 'ring':
+                    g.globalAlpha = 1;
+                    g.strokeStyle = `${f.colour}${fade})`;
+                    g.lineWidth = 4 * fade + 1;
+                    g.beginPath(); g.arc(f.x, f.y, f.r * (0.4 + 0.6 * age), 0, Math.PI * 2); g.stroke();
+                    break;
+                case 'glow':
+                    g.globalAlpha = 0.8 * fade;
+                    g.globalCompositeOperation = 'lighter';
+                    g.drawImage(glow(f.colour), f.x - f.r, f.y - f.r, f.r * 2, f.r * 2);
+                    g.globalCompositeOperation = 'source-over';
+                    break;
+                case 'shock':
+                    g.globalAlpha = fade;
+                    g.lineJoin = 'round';
+                    for (const [lw, colour] of [[9, 'rgba(120, 190, 255, .35)'], [3.5, '#FFF3B0']]) {
+                        g.strokeStyle = colour; g.lineWidth = lw;
+                        g.beginPath();
+                        f.path.forEach((p, j) => { const jx = j ? Math.sin(f.seed * 50 + j) * 8 : 0; if (j) g.lineTo(p.x + jx, p.y - jx); else g.moveTo(p.x, p.y); });
+                        g.stroke();
+                    }
+                    break;
+                case 'laser': case 'zap':
+                    g.globalAlpha = fade;
+                    g.strokeStyle = f.t === 'laser' ? '#FF5A6A' : '#7FC4FF';
+                    g.lineWidth = f.t === 'laser' ? 4 : 3;
+                    g.beginPath(); g.moveTo(f.x0, f.y0); g.lineTo(f.x1, f.y1); g.stroke();
+                    break;
+                case 'bite':
+                    g.globalAlpha = Math.min(1, fade * 2);
+                    sprite('maw', 56, f.x, f.y, false, 0.55 + Math.sin(age * Math.PI) * 0.45);
+                    break;
+                case 'wave':
+                    g.globalAlpha = fade;
+                    g.strokeStyle = 'rgb(110, 200, 255)'; g.lineWidth = 14;
+                    g.beginPath(); g.arc(cell.x, cell.y, 40 + age * 900, 0, Math.PI * 2); g.stroke();
+                    break;
+                case 'leakflash':
+                    g.globalAlpha = 1;
+                    g.setTransform(1, 0, 0, 1, 0, 0);
+                    g.fillStyle = `rgba(229, 72, 77, ${0.18 * fade})`;
+                    g.fillRect(0, 0, w, h);
+                    base();
+                    break;
             }
         }
+        g.globalAlpha = 1;
     }
 
     let shown = {};
@@ -466,9 +540,12 @@
             els.ult.classList.toggle('ready', v >= 100);
             els.ult.disabled = v < 100;
         });
-        const key = Object.entries(run.weapons).map(([w, l]) => w + l).join(',');
-        put('weapons', key, () => {
-            els.weapons.innerHTML = Object.entries(run.weapons).map(([w, l]) => `<span class="wpn" role="img" aria-label="${E.WEAPONS[w].name}, level ${l}" style="--t:${TIER[l - 1]}">${icon(w)}<b>${l}</b></span>`).join('');
+        put('weapons', run.armedAt, () => {
+            els.weapons.innerHTML = Object.entries(run.weapons).map(([w, l]) => {
+                const evo = run.evolved[w];
+                const name = evo ? E.EVOLVE[w].name : E.WEAPONS[w].name;
+                return `<span class="wpn${evo ? ' evo' : ''}" role="img" aria-label="${name}, level ${l}" style="--t:${TIER[l - 1]}">${icon(w)}<b>${evo ? '★' : l}</b></span>`;
+            }).join('');
         });
     }
 
@@ -484,12 +561,25 @@
     function offer() {
         if (!els.overlay.hidden) return;
         const cards = run.pending.map((o, i) => {
-            const isWeapon = o.kind !== 'boost';
-            const def = isWeapon ? E.WEAPONS[o.id] : E.BOOSTS[o.id];
-            const colour = isWeapon ? TIER[o.level - 1] : '#FF8DC8';
-            const tag = o.kind === 'new' ? 'New' : o.kind === 'up' ? `Level ${o.level}` : 'Boost';
-            const text = o.kind === 'up' ? E.gains(o.id, o.level) : def.text;
-            return `<button class="pick" data-i="${i}" style="--t:${colour}"><span class="tag">${tag}</span>${icon(o.id)}<b>${def.name}</b><small>${text}</small></button>`;
+            let name, text, tag, colour, art = o.id;
+            if (o.kind === 'evolve') {
+                ({name, text} = E.EVOLVE[o.id]);
+                tag = 'Evolve!';
+                colour = '#FF7AC8';
+            } else if (o.kind === 'boost') {
+                ({name, text} = E.BOOSTS[o.id]);
+                const has = run.boosts[o.id] || 0;
+                const opens = Object.entries(E.EVOLVE).find(([w, ev]) => ev.boost === o.id && run.weapons[w] && !run.evolved[w]);
+                tag = has ? `Boost ×${has + 1}` : 'Boost';
+                if (opens) text += `. Evolves ${E.WEAPONS[opens[0]].name}`;
+                colour = '#FF8DC8';
+            } else {
+                ({name} = E.WEAPONS[o.id]);
+                text = o.kind === 'up' ? E.gains(o.id, o.level) : E.WEAPONS[o.id].text;
+                tag = o.kind === 'new' ? 'New' : o.level === E.MAX_LEVEL ? 'Max level' : `Level ${o.level}`;
+                colour = TIER[o.level - 1];
+            }
+            return `<button class="pick ${o.kind}" data-i="${i}" style="--t:${colour}"><span class="tag">${tag}</span>${icon(art)}${o.kind === 'evolve' ? `<i class="star">${icon('evolve')}</i>` : ''}<b>${name}</b><small>${text}</small></button>`;
         }).join('');
         showOverlay(`<div class="choose"><h2 id="overlay-title">Level ${run.level}!</h2><p>Pick one</p><div class="picks">${cards}</div></div>`);
     }
@@ -523,6 +613,7 @@
         save();
         const title = won ? 'Chapter cleared!' : run.quit ? 'Run abandoned' : 'The heart gave out';
         showOverlay(`<div class="end ${won ? 'won' : 'lost'}">
+            ${won ? `<img class="chest-art" src="${IMG('chest')}" alt="">` : ''}
             <h2 id="overlay-title">${title}</h2>
             <p>${won ? `Chapter ${n} is clean. Chapter ${n + 1} is open.` : `You held out to ${pct}%.`}</p>
             <div class="coins-won"><span class="coin"></span>+${coins}</div>
@@ -564,14 +655,16 @@
 
     function showRules() {
         const weapons = Object.entries(E.WEAPONS).map(([w, d]) => {
-            const at = E.UNLOCKS.find(([id]) => id === w)[1];
-            return `<div>${icon(w)}<p><b>${d.name}</b> ${d.text}${at > 1 ? ` (from chapter ${at})` : ''}</p></div>`;
+            const at = E.UNLOCKS.find(([id]) => id === w)[1], ev = E.EVOLVE[w];
+            return `<div>${icon(w)}<p><b>${d.name}</b> ${d.text}${at > 1 ? ` (from chapter ${at})` : ''}. At level ${E.MAX_LEVEL} with ${E.BOOSTS[ev.boost].name} it evolves into <b>${ev.name}</b>: ${ev.text.toLowerCase()}.</p></div>`;
         }).join('');
+        const boosts = Object.entries(E.BOOSTS).map(([b, d]) => `<div>${icon(b)}<p><b>${d.name}</b> ${d.text}.</p></div>`).join('');
         openSheet(`<h2>How to play</h2>
             <p>Viruses crawl down the channel towards the heart. Every bit that gets through hurts it; lose the heart and the run is over.</p>
-            <p>Your cell fights on its own. Popped viruses drop DNA; each level up, pick a new weapon, a stronger one, or a boost.</p>
+            <p>Your cell fights on its own. Popped viruses drop DNA; each level up, pick a new weapon, a stronger one, or a boost. Weapons go to level ${E.MAX_LEVEL}, boosts stack without end, and a weapon at its top level with its partner boost evolves.</p>
             <p>Tap the burst button when it glows to hit every virus at once. Chests at a quarter, half and the end of a chapter pay coins for the lab.</p>
-            <h3>Weapons</h3><div class="legend">${weapons}</div>`);
+            <h3>Weapons</h3><div class="legend">${weapons}</div>
+            <h3>Boosts</h3><div class="legend">${boosts}</div>`);
     }
 
     function openSheet(html) {
@@ -637,7 +730,7 @@
     });
     // Leaving the tab pauses the run; coming back keeps it paused until you resume.
     document.addEventListener('visibilitychange', () => { if (document.hidden && run && !run.over && !run.pending && els.overlay.hidden) els.pause.click(); });
-    window.addEventListener('resize', () => { if (!run) renderHome(); });
+    window.addEventListener('resize', () => { layout = null; if (!run) renderHome(); else still = false; });
 
     els.fastBtn.classList.toggle('on', store.fast);
     els.fastBtn.setAttribute('aria-pressed', String(store.fast));

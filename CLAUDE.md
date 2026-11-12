@@ -47,10 +47,19 @@ needs to know.
 - `static/gift.js` is the one power-up drop animation; both games call `Gift.show`.
 - **Draft Battle's battle must stay deterministic across browsers**: integers only in
   `draft-engine.js` (no `Math.random`, sin, cos, pow, hypot), or two phones in a room see
-  different battles. The server never sees a card; `DraftRoom.picker`, `TURNS` and
-  `MAX_ROUNDS` mirror the engine, and `check:draft` holds them equal.
+  different battles. The server never sees a card; `DraftRoom.picksIn`, `OFFER` and
+  `MAX_ROUNDS` mirror the engine, and `check:draft` holds them equal. A rules change
+  moves `GOLDEN` in `tools/draft-check.mjs`; the troop ring check must keep passing.
 - **Cell Survivor's chapters are seeds** (`chapter(n)`), and its difficulty curve is
   set by `check:cells`'s bot: a change to weapons or wave health moves every chapter.
+- **Both canvas games are built for crowds.** No allocations in a frame's hot loops,
+  batched paths, effects baked once (`bake`), and a resolution step-down on slow phones.
+  Cell Survivor's fixed scale lets it pre-scale every sprite (`sized`); Draft's camera
+  zooms, so its sprites stay small (192 px) and are scaled as drawn. In Cell Survivor
+  shots find viruses through `Run.near`'s buckets and only crits raise hit events; a
+  Draft `fight()` nobody watches raises none. Keep new effects inside those rules.
+- Generated art lives in `static/draft/img` and `static/cells/img` (WebP) and is
+  precached in `sw.js`; the large source PNGs are not in the repo.
 - Hide & Meow's track and endless boards share `generate`; endless indices start at
   `ENDLESS_BASE` so the two never hand out the same board.
 

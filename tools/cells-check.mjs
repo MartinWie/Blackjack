@@ -1,7 +1,7 @@
 // Cell Survivor: chapters are seeded and playable (the channel stays clear of the
-// cell and inside the dish), and a bot that picks sensibly finds the difficulty curve
-// the game promises: early chapters a stroll, later ones needing the lab, careless picks
-// punished. Run with `npm run check:cells`.
+// cell and inside the dish), a bot that picks sensibly finds the difficulty curve the
+// game promises (early chapters a stroll, later ones needing the lab, careless picks
+// punished), and a fully evolved build stays cheap to simulate. Run with `npm run check:cells`.
 import {createRequire} from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -35,9 +35,9 @@ const PRIORITY = ['scalpel', 'swab', 'bubble', 'shock', 'satellite', 'needles', 
 function pick(run, smart, r) {
     const o = run.pending;
     if (!smart) return Math.floor(r() * o.length);
-    const score = (x) => (x.kind === 'new' ? 120 - PRIORITY.indexOf(x.id) * 3
+    const score = (x) => (x.kind === 'evolve' ? 250 : x.kind === 'new' ? 120 - PRIORITY.indexOf(x.id) * 3
         : x.kind === 'up' ? 100 + x.level * 5
-            : {might: 60, haste: 55, crit: 45, reach: 40, mend: run.core < run.coreMax * 0.5 ? 130 : 10, learn: 30}[x.id]);
+            : {might: 60, haste: 55, crit: 45, reach: 40, twin: 70, ricochet: 50, chain: 65, mend: run.core < run.coreMax * 0.5 ? 130 : 10, learn: 30}[x.id]);
     let best = 0;
     o.forEach((x, i) => { if (score(x) > score(o[best])) best = i; });
     return best;
@@ -71,6 +71,24 @@ const careful = [6, 8, 10, 12].reduce((s, n) => s + wins(n, labAt(n), true, seed
 const careless = [6, 8, 10, 12].reduce((s, n) => s + wins(n, labAt(n), false, seeds), 0);
 check(careful > careless + 2, `sensible picks beat careless ones in chapters 6–12 (${careful} against ${careless} of 24)`);
 check(worst < 8, `the slowest step takes ${worst.toFixed(1)} ms (${((ms * 1000) / steps).toFixed(0)} µs on average)`);
+
+// 3. A bullet hell stays cheap: five evolved weapons with stacked boosts, deep in the game.
+let hellWorst = 0, hellShots = 0;
+for (const set of [['pill', 'needles', 'bubble', 'shock', 'satellite'], ['scalpel', 'swab', 'tower', 'maw', 'bubble']]) {
+    const run = new E.Run(45, labAt(45), 3);
+    run.weapons = {};
+    for (const w of set) { run.weapons[w] = E.MAX_LEVEL; run.evolved[w] = true; }
+    run.boosts = {twin: 5, ricochet: 3, chain: 3};
+    run.arm();
+    while (!run.over && run.t < 300) {
+        if (run.pending) run.choose(0);
+        const t = performance.now();
+        run.step();
+        hellWorst = Math.max(hellWorst, performance.now() - t);
+        hellShots = Math.max(hellShots, run.shots.length);
+    }
+}
+check(hellWorst < 6, `a maxed, evolved build steps in ${hellWorst.toFixed(1)} ms at worst with up to ${hellShots} shots in the dish`);
 
 if (failed) { console.log(`\n${failed} check(s) failed`); process.exit(1); }
 console.log('\nCell Survivor chapters are fair');

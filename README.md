@@ -12,7 +12,7 @@ The same server hosts more games behind a launcher at `/`:
 | `/meow` | Hide & Meow, a cat-finding logic puzzle | offline |
 | `/sweets` | Sweet Swap, a match-3 with six level types | offline |
 | `/picnic` | Ant Picnic, ants eating pixel-art food | offline |
-| `/draft` | Draft Battle, a card draft and an auto-battle; solo or in a room | solo offline |
+| `/draft` | Draft Battle, a card draft and an auto-battle with three hearts; solo or in a room | solo offline |
 | `/cells` | Cell Survivor, a white blood cell holding off virus chains | offline |
 | `/marbles` | Marbles, realtime multiplayer odd/even (ported from `MarbleGame`) | online |
 
@@ -33,8 +33,8 @@ npm run check:solo         # plays 25 offline rounds through the real bundle, in
 npm run check:meow         # every difficulty's first 30 boards: unique, solvable, seeded
 npm run check:sweets       # Sweet Swap levels: budgets the bot met, won from the player's seed
 npm run check:picnic       # Ant Picnic levels: winnable by their own eating order, seeded
-npm run check:draft        # Draft Battle: deterministic battles, fair seats and cards, a bot that drafts
-npm run check:cells        # Cell Survivor: seeded chapters, and the difficulty curve a bot finds
+npm run check:draft        # Draft Battle: deterministic battles, the troop ring, fair seats and cards, a bot that drafts
+npm run check:cells        # Cell Survivor: seeded chapters, the difficulty curve a bot finds, a cheap bullet hell
 ```
 
 Phone: `http://<your-mac-ip>:8090` on the same wifi — `start.sh` prints the address.
@@ -207,31 +207,46 @@ unlocked level with its stars in a sheet, like the other games.
 
 ## Draft Battle
 
-Each round lays out ten cards in five pairs. Whoever's turn it is keeps one card of the
-pair and the other goes to the rival; turns alternate and the round decides who starts.
-Cards are troops (goblins, swordsmen, archers, knights, a giant), multipliers (×2 of a
-troop, which bring at least two when there are none; Rally for +40% of everything),
-boosts, defenses (wall, shields, medics who get every other fallen troop back up, a
-tower) and weapons (catapult, fireball, lightning). Then the two armies fight on their
-own; first to two rounds wins the match (up to five when rounds are drawn).
+Both players draft at once, each from offers of their own: three cards a pick, three
+picks in the first round and two in every round after. Cards stay for the whole match, so
+round three fights with everything picked in rounds one to three, and troop cards bring
+more troops the later they are kept. Each player has three hearts; a lost battle costs
+one, a draw none, and the loser of a round gets rarer offers in the next. Cards are
+troops, multipliers (a double of every troop, a triple as an epic card, Rally, Call to
+Arms), boosts (rage, armor, shields, haste, vampire, bomb belts, medics, berserk),
+buildings (wall, tower, catapult) and spells (fireball, lightning, frost, a meteor
+shower). An army too big for the field sends veterans: fewer troops, each as strong as
+the ones it stands for.
+
+The six troops form a ring: Spearmen beat Knights, Knights beat Archers, Archers beat
+Goblins, Goblins beat Mages, Mages beat Giants, Giants beat Spearmen. A troop hits the
+next one on the ring twice as hard, still has the edge two steps on, and goes for what it
+beats first, so no single troop wins everything; the Dragon and the buildings hang off the
+ring with a prey and a foe each.
 
 `draft-engine.js` holds every rule and the battle, a fixed-tick simulation in integers
 only (`Math.sqrt` of an integer, floored, is exact in every browser; sin, pow and
 `Math.random` are not). That is what lets a live room work without the server knowing a
 single card: both phones run the same battle on the same seed and picks.
-`de.mw.draft.DraftRoom` only orders the draft: whose turn, which card of the pair was
-kept, a 20 s clock that keeps the first card for an absent player, and both players
-being ready for the next round or a rematch. A player who leaves mid-match keeps their
-seat (the clock picks for them, and the link brings them back to their own hand); a
-phone on another build than the server's reloads, since it would fight other battles.
-Rooms live in `DraftRooms` with their own
-stream instance (`DraftEvents`), swept and handed back like the blackjack tables.
+`de.mw.draft.DraftRoom` only collects the picks: per round and seat, hiding a rival's
+picks of the round still being drafted (they show as -1 until both are done), a 20 s
+clock per pick that keeps the first card for an absent player, and both players being
+ready for the next round or a rematch. A player who leaves mid-match keeps their seat
+(the clock picks for them, and the link brings them back to their own army); a phone on
+another build than the server's reloads, since it would fight other battles. Rooms live
+in `DraftRooms` with their own stream instance (`DraftEvents`), swept and handed back
+like the blackjack tables.
 
-Solo plays against a bot that tries each card of the pair in a quick battle; lower ranks
-(Bronze to Master, by trophies) slip into random picks more often. A solo match in
-progress is saved and resumes. `npm run check:draft` keeps the battle deterministic, the
-server's turn rule equal to the engine's, both seats and every card in balance, and the
-bot ahead of random drafting.
+Solo plays against a bot that tries each card on offer in quick battles against what its
+rival has shown, which makes it counter-pick; it thinks in a worker (`draft-bot.js`) so
+the page never stalls. Lower ranks (Bronze to Master, by trophies) slip into random picks
+more often, and from Diamond on the bot drafts from rarer cards. A solo match in progress
+is saved and resumes. `npm run check:draft` keeps the battle deterministic, the server's
+pick counts equal to the engine's, the ring intact, both seats and every card in balance,
+and the bot ahead of random drafting.
+
+The battlefield draws generated sprites (`static/draft/img`), batched shadows and team
+rings, and baked glows; a phone that keeps missing frames lowers its canvas resolution.
 
 ## Cell Survivor
 
@@ -240,8 +255,12 @@ crawl in single file down a winding agar channel to the heart at the bottom; eve
 segment that gets through hurts it (a head three times as much), and the run ends when
 the heart does. The cell fights on its own with medical weapons (capsules, a spinning
 scalpel, a cotton swab, soap bubbles, acupuncture needles, med towers, static shock,
-satellites, a phage maw), each with five levels. Popped viruses drop DNA; every level
-up offers three picks: a new weapon, a weapon's next level, or a boost. The Antibody
+satellites, a phage maw), each with eight levels; at the top level, with its partner boost
+taken, a weapon evolves (Megadose, Blade Storm, Needle Rain and so on). Popped viruses
+drop DNA; every level up offers three picks: an evolution, a new weapon, a weapon's next
+level, or a boost. Boosts stack without end, among them Twin Shot (one more pill, needle
+and bubble per shot), Ricochet and Chain Reaction (popped viruses burst on their
+neighbours, a beat later, so a crowd pops in a ripple). The Antibody
 Burst charges up and is the one thing you tap. A chapter has chests at a quarter, half
 and the end, a mid-boss and a boss; coins buy permanent upgrades in the lab.
 
@@ -251,7 +270,11 @@ toughen steeply within a chapter, as a run's weapons stack up, and gently from o
 chapter to the next, so later chapters need the lab. A run steps at a fixed tick, so
 `npm run check:cells` plays the same game as the page: a bot that picks sensibly wins
 the first chapters without the lab, mostly loses chapter 12 without it, mostly wins it
-with what a player could have bought by then, and beats careless picks.
+with what a player could have bought by then, and beats careless picks. It also runs a
+fully evolved build deep in the game to keep a dish of several hundred shots cheap: shots
+look up viruses in a grid of buckets, stats are worked out once per pick, and only crits
+raise a hit event. The page scales each sprite once to the pixels it is drawn at, keeps
+the dish as one cached layer, and drops its canvas resolution a step on a slow phone.
 
 ## Deploying
 

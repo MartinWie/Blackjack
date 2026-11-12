@@ -18,25 +18,32 @@ class DraftRoomTest {
         return room
     }
 
-    /** Plays every turn of the current round, each by whoever's turn it is. */
+    /** Both seats make every pick of [round]. */
     private fun draftRound(room: DraftRoom, round: Int, now: Long) {
-        repeat(DraftRoom.TURNS) { turn ->
-            val who = if (DraftRoom.picker(round, turn) == 0) "a" else "b"
-            assertNull(room.pick(who, round, turn, turn % 2, now))
+        repeat(DraftRoom.picksIn(round)) { pick ->
+            assertNull(room.pick("a", round, pick, pick % DraftRoom.OFFER, now))
+            assertNull(room.pick("b", round, pick, (pick + 1) % DraftRoom.OFFER, now))
         }
     }
 
     @Test
-    fun `turns alternate and the round decides who starts`() {
+    fun `both seats pick at once and the rival's picks stay hidden until both are done`() {
         val room = seated()
-        assertEquals("it is not your turn", room.pick("b", 0, 0, 0, 1))
+        assertNull(room.pick("b", 0, 0, 2, 1))
         assertNull(room.pick("a", 0, 0, 1, 1))
-        assertEquals("it is not your turn", room.pick("a", 0, 1, 0, 2))
-        assertNull(room.pick("b", 0, 1, 0, 2))
+        assertNull(room.pick("a", 0, 1, 0, 2))
         assertEquals("that pick is over", room.pick("a", 0, 1, 0, 3))
-        assertEquals(listOf(1, 0), room.snapshot("a", 3).picks[0])
-        // Round 1 is started by seat 1.
-        assertEquals(1, DraftRoom.picker(1, 0))
+        // Each sees their own picks and only how many the other made.
+        assertEquals(listOf(listOf(1, 0), listOf(-1)), room.snapshot("a", 3).picks[0])
+        assertEquals(listOf(listOf(-1, -1), listOf(2)), room.snapshot("b", 3).picks[0])
+        assertEquals(listOf(listOf(-1, -1), listOf(-1)), room.snapshot("z", 3).picks[0])
+        assertNull(room.pick("a", 0, 2, 2, 4))
+        assertEquals("that pick is over", room.pick("a", 0, 3, 0, 4))
+        assertNull(room.pick("b", 0, 1, 1, 5))
+        assertNull(room.pick("b", 0, 2, 0, 5))
+        // The round is sealed: everything is shown.
+        assertEquals(listOf(listOf(1, 0, 2), listOf(2, 1, 0)), room.snapshot("a", 5).picks[0])
+        assertEquals(listOf(listOf(1, 0, 2), listOf(2, 1, 0)), room.snapshot("z", 5).picks[0])
     }
 
     @Test
@@ -49,10 +56,11 @@ class DraftRoomTest {
         // A third player is turned away.
         assertNull(room.join("c", "Cy", 2))
         assertNotNull(room.snapshot("a", 2).turnLeftMs)
+        assertNotNull(room.snapshot("b", 2).turnLeftMs)
     }
 
     @Test
-    fun `the next round starts when both are ready`() {
+    fun `the next round starts when both are ready and asks for fewer picks`() {
         val room = seated()
         assertEquals("that round is not over", room.next("a", 0, 1))
         draftRound(room, 0, 1)
@@ -64,6 +72,9 @@ class DraftRoomTest {
         assertEquals(2, state.picks.size)
         assertEquals(listOf(false, false), state.ready)
         assertEquals(DraftRoom.TURN_MILLIS, state.turnLeftMs)
+        draftRound(room, 1, 4)
+        assertEquals(DraftRoom.PICKS, room.snapshot("a", 4).picks[1][0].size)
+        assertNull(room.snapshot("a", 4).turnLeftMs)
     }
 
     @Test
@@ -77,20 +88,23 @@ class DraftRoomTest {
         val after = room.snapshot("a", 3)
         assertEquals(1, after.match)
         assertNotEquals(before.seed, after.seed)
-        assertEquals(listOf(emptyList<Int>()), after.picks)
+        assertEquals(listOf(listOf(emptyList<Int>(), emptyList())), after.picks)
         assertEquals("that match is not over", room.rematch("a", 0, 4))
     }
 
     @Test
-    fun `a pick left too long is made for its player`() {
+    fun `a pick left too long is made for its player alone`() {
         val room = seated(0)
+        assertNull(room.pick("a", 0, 0, 2, 5))
         room.tick(DraftRoom.TURN_MILLIS - 1)
-        assertTrue(room.snapshot("a", 0).picks[0].isEmpty())
+        assertTrue(room.snapshot("b", 0).picks[0][1].isEmpty())
         room.tick(DraftRoom.TURN_MILLIS)
-        assertEquals(listOf(0), room.snapshot("a", 0).picks[0])
+        assertEquals(listOf(0), room.snapshot("b", 0).picks[0][1])
+        // Seat 0's clock started at its own pick, so it has not run out yet.
+        assertEquals(listOf(2), room.snapshot("a", 0).picks[0][0])
         // The clock restarts for the next pick.
         room.tick(DraftRoom.TURN_MILLIS + 1)
-        assertEquals(1, room.snapshot("a", 0).picks[0].size)
+        assertEquals(1, room.snapshot("b", 0).picks[0][1].size)
     }
 
     @Test
@@ -113,14 +127,14 @@ class DraftRoomTest {
         val room = seated(0)
         assertNull(room.pick("a", 0, 0, 1, 10))
         room.leave("b", 20)
-        val state = room.snapshot("a", 20)
+        val state = room.snapshot("b", 20)
         assertEquals(true, state.seats[1]?.left)
         // Nobody else can take it, and the clock keeps running for the absent player.
         assertNull(room.join("c", "Cy", 21))
-        assertEquals(DraftRoom.TURN_MILLIS - 10, state.turnLeftMs)
+        assertEquals(DraftRoom.TURN_MILLIS - 20, state.turnLeftMs)
         // Coming back is the same seat, and does not restart the clock.
         assertEquals(1, room.join("b", "Bo", 30))
-        assertEquals(DraftRoom.TURN_MILLIS - 20, room.snapshot("a", 30).turnLeftMs)
+        assertEquals(DraftRoom.TURN_MILLIS - 30, room.snapshot("b", 30).turnLeftMs)
         assertEquals(false, room.snapshot("a", 30).seats[1]?.left)
         // Both gone: the room counts as empty and can be handed back.
         room.leave("a", 40)
@@ -130,9 +144,30 @@ class DraftRoomTest {
     }
 
     @Test
-    fun `bad picks and a sixth round are refused`() {
+    fun `a player left alone can play the match out`() {
+        val room = seated(0)
+        draftRound(room, 0, 1)
+        room.leave("b", 2)
+        // The one still here moves on; the absent seat counts as ready.
+        assertNull(room.next("a", 0, 3))
+        assertEquals(2, room.snapshot("a", 3).picks.size)
+        // Ready first, then the rival leaves: the round starts too.
+        repeat(DraftRoom.picksIn(1)) { assertNull(room.pick("a", 1, it, 0, 4)) }
+        // The clock drafts for the absent seat, which then comes back.
+        room.tick(4 + DraftRoom.TURN_MILLIS)
+        room.tick(4 + 2 * DraftRoom.TURN_MILLIS)
+        assertEquals(1, room.join("b", "Bo", 5))
+        assertNull(room.next("a", 1, 6))
+        assertEquals(2, room.snapshot("a", 6).picks.size)
+        room.leave("b", 7)
+        assertEquals(3, room.snapshot("a", 7).picks.size)
+    }
+
+    @Test
+    fun `bad picks and a round past the last are refused`() {
         val room = seated()
-        assertEquals("pick one of the two cards", room.pick("a", 0, 0, 2, 1))
+        assertEquals("pick one of the cards on offer", room.pick("a", 0, 0, DraftRoom.OFFER, 1))
+        assertEquals("pick one of the cards on offer", room.pick("a", 0, 0, -1, 1))
         assertEquals("you are not in this room", room.pick("z", 0, 0, 0, 1))
         for (round in 0 until DraftRoom.MAX_ROUNDS) {
             draftRound(room, round, 2)

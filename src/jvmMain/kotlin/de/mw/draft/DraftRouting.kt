@@ -13,7 +13,7 @@ import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 
 @Serializable
-private data class PickRequest(val round: Int, val turn: Int, val choice: Int)
+private data class PickRequest(val round: Int, val pick: Int, val choice: Int)
 
 @Serializable
 private data class NextRequest(val round: Int)
@@ -52,7 +52,7 @@ fun Route.draftApi() {
             post("/pick") {
                 val (room, player) = call.draftRoom() ?: return@post
                 val body = call.receive<PickRequest>()
-                room.pick(player.playerId, body.round, body.turn, body.choice, System.currentTimeMillis())
+                room.pick(player.playerId, body.round, body.pick, body.choice, System.currentTimeMillis())
                     ?.let { return@post call.respond(HttpStatusCode.Conflict, ApiError(it)) }
                 call.respondState(room, player)
             }
