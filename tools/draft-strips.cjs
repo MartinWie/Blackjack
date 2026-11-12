@@ -1,15 +1,18 @@
-// Builds one animation strip per unit and team: idle, walk1, walk2, windup, strike, each
+// Builds one animation strip per unit and team (troops: idle, walk1, walk2, windup, strike,
+// pass; buildings: see POSES), each
 // FRAME px square, anchored on the feet (the dragon on its middle); red is blue recoloured.
 const {chromium} = require('/Users/martinwiechmann/Documents/Dev/Git/MarbleGame/node_modules/playwright');
 const fs = require('fs');
 const A = '/Users/martinwiechmann/Documents/Dev/Git/blackjack/assets/sprites';
 const OUT = '/Users/martinwiechmann/Documents/Dev/Git/blackjack/src/jvmMain/resources/static/draft/img';
-const UNITS = (process.argv[2] || 'spear,knight,archer,goblin,mage,giant,dragon').split(',');
-const FRAMES = ['idle', 'walk1', 'walk2', 'windup', 'strike'];
+const UNITS = (process.argv[2] || 'spear,knight,archer,goblin,mage,giant,dragon,tower,catapult').split(',');
+const TROOP = ['idle', 'walk1', 'walk2', 'windup', 'strike', 'pass'];
+const POSES = {tower: ['idle', 'flag', 'fire'], catapult: ['idle', 'fire', 'reload']};
 (async () => {
   const b = await chromium.launch();
   const p = await b.newPage();
   for (const unit of UNITS) {
+    const FRAMES = POSES[unit] || TROOP;
     const srcs = FRAMES.map((f) => 'data:image/png;base64,' + fs.readFileSync(f === 'idle' ? `${A}/draft/${unit}-blue.png` : `${A}/frames/${unit}-${f}.png`).toString('base64'));
     const res = await p.evaluate(async ({srcs, fly}) => {
       const FRAME = 256, VIEW = 1280;   // a frame shows 1280 source px, so a long lunge fits
@@ -58,7 +61,7 @@ const FRAMES = ['idle', 'walk1', 'walk2', 'windup', 'strike'];
     }, {srcs, fly: unit === 'dragon'});
     for (const team of ['blue', 'red']) {
       fs.writeFileSync(`${OUT}/${unit}-${team}-anim.webp`, Buffer.from(res[team].webp.split(',')[1], 'base64'));
-      fs.writeFileSync(`${__dirname}/strip-${unit}-${team}.png`, Buffer.from(res[team].png.split(',')[1], 'base64'));
+      fs.writeFileSync(`${process.env.STRIP_PREVIEW || '/tmp'}/strip-${unit}-${team}.png`, Buffer.from(res[team].png.split(',')[1], 'base64'));
     }
     console.log(unit, res.info.map((i) => `${i.w}x${i.h}`).join(' '));
   }

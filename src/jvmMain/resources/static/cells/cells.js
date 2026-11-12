@@ -47,7 +47,7 @@
 
     const heads = LOOKS.map((l) => `virus-${l}`), bites = LOOKS.map((l) => `virus-${l}-bite`), bodies = LOOKS.map((l) => `body-${l}`);
     const NAMES = ['dish', 'hero', 'heart', 'pill', 'scalpel', 'bubble', 'tower', 'satellite', 'maw', 'dna', 'swab',
-        'hero-shoot', 'hero-blink', ...LOOKS.flatMap((l) => [`virus-${l}`, `virus-${l}-bite`, `body-${l}`])];
+        'hero-shoot', 'hero-blink', 'hero-windup', 'hero-breathe', ...LOOKS.flatMap((l) => [`virus-${l}`, `virus-${l}-bite`, `body-${l}`])];
     const pics = {};
     let loaded = null;
     function loadPics() {
@@ -412,17 +412,18 @@
             g.drawImage(glow('rgba(110, 200, 255, .9)'), cell.x - 60, cell.y - 60, 120, 120);
             g.globalAlpha = 1;
         }
-        // The cell kicks back from every volley and leans into its aim.
+        // The cell throws in time with its shots: arm back just before a volley, forward as it
+        // flies, and it breathes in between. It stands firm; only a shot nudges it back.
         const fired = run.shots.length;
         if (fired > heroShots && fired) { kick = 1; kickA = run.shots[fired - 1].a; }
         heroShots = fired;
-        kick = Math.max(0, kick - 0.09);
-        const still2 = calm();
-        const kx = still2 ? 0 : -Math.cos(kickA) * 7 * kick, ky = still2 ? 0 : -Math.sin(kickA) * 7 * kick;
-        const bounce = still2 ? 0 : Math.abs(Math.sin(t * 4)) * 3;
-        const heroPose = kick > 0.35 ? 'hero-shoot' : !still2 && (t + 0.4) % 3.2 < 0.16 ? 'hero-blink' : 'hero';
-        turned(heroPose, 66, cell.x + kx, cell.y + ky - bounce, still2 ? 0 : Math.sin(t * 2.2) * 0.08 + Math.cos(kickA) * 0.2 * kick, 1 + kick * 0.1 + (still2 ? 0 : Math.sin(t * 8) * 0.02));
-        base();
+        kick = Math.max(0, kick - 0.07);
+        const quiet = calm();
+        const due = run.timers.pill ?? 1;
+        const heroPose = kick > 0.45 ? 'hero-shoot' : due < 0.13 ? 'hero-windup'
+            : !quiet && (t + 0.4) % 3.2 < 0.14 ? 'hero-blink' : !quiet && t % 1.4 < 0.7 ? 'hero-breathe' : 'hero';
+        const back = quiet ? 0 : kick * kick * 5;
+        sprite(heroPose, 66, cell.x - Math.cos(kickA) * back, cell.y - Math.sin(kickA) * back);
         const armed = new Map(run.armed);
         const sc = armed.get('scalpel');
         if (sc) {

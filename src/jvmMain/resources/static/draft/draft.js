@@ -663,8 +663,8 @@
     }
 
     async function loadArt() {
-        // Troops come as strips of five poses; buildings as one picture.
-        const names = ['wall', 'ground', ...ANIMATED.flatMap((t) => [`${t}-blue-anim`, `${t}-red-anim`]), ...['tower', 'catapult'].flatMap((t) => [`${t}-blue`, `${t}-red`])];
+        // Troops and buildings come as strips of poses; the wall is one picture.
+        const names = ['wall', 'ground', ...ANIMATED.flatMap((t) => [`${t}-blue-anim`, `${t}-red-anim`])];
         await Promise.all(names.map(async (n) => {
             const s = sprite(n);
             if (s.ok) return;
@@ -963,9 +963,10 @@
     }
 
     const ease = (x) => x * x * (3 - 2 * x);
-    // Poses in a troop's strip, POSE px each: idle, two steps, the wind-up and the strike.
-    const POSE = 256, WALK = [1, 0, 2, 0], WINDUP = 3, STRIKE = 4;
-    const ANIMATED = ['spear', 'knight', 'archer', 'goblin', 'mage', 'giant', 'dragon'];
+    // Poses in a troop's strip, POSE px each: idle, a step, the other step, the wind-up, the strike,
+    // and the legs passing between steps. A tower has idle, flag, fire; a catapult loaded, flung, cranking.
+    const POSE = 256, WALK = [1, 5, 2, 5], WINDUP = 3, STRIKE = 4;
+    const ANIMATED = ['spear', 'knight', 'archer', 'goblin', 'mage', 'giant', 'dragon', 'tower', 'catapult'];
 
     function draw(ctx, geo, cam, scene, alpha, now) {
         const {b, teams, flip} = scene;
@@ -1026,13 +1027,13 @@
 
         const star = STAR();
         for (const u of order) {
-            const strip = !u.fixed;
+            const strip = !u.wall;
             const s = art[u.wall ? 'wall' : (u.artKey || (u.artKey = `${u.type}-${teams[u.side]}${strip ? '-anim' : ''}`))];
             if (!s || !s.ok) continue;
             const x = u.sx, y = u.sy;
             const size = u.r * (u.wall ? 2.5 : u.fixed ? 3.3 : u.fly ? 4.2 : 3.7);
             // Every unit is a puppet on its feet: it leans, hops, squashes and stretches.
-            let ox = 0, oy = 0, face = 1, lean = 0, wide = 1, tall = 1, pose = u.fly ? 1 + (Math.floor(now / 170 + u.id) & 1) : 0;
+            let ox = 0, oy = 0, face = 1, lean = 0, wide = 1, tall = 1, pose = u.fly ? WALK[Math.floor(now / 95 + u.id) & 3] : 0;
             const target = u.target >= 0 ? b.units[u.target] : null;
             let ax = 0, ay = 0;   // unit vector to the target, on screen
             if (target) {
@@ -1051,7 +1052,8 @@
                         // A waddle: quick little feet for goblins, a heavy stomp for giants.
                         // Two steps to a hop cycle: a foot forward at each top.
                         const ph = clock * (0.3 + u.speed * 0.035), hop = Math.abs(Math.sin(ph));
-                        if (!u.fly) pose = WALK[Math.floor((ph / Math.PI) * 2 + 0.5) & 3];
+                        // A foot lands at the bottom of each hop, the legs pass at its top.
+                        if (!u.fly) pose = WALK[Math.floor(ph / (Math.PI / 2) + 0.5) & 3];
                         oy -= hop * u.r * (u.fly ? 0 : 0.3);
                         lean += Math.sin(ph) * 0.05 + 0.04;
                         tall *= 0.97 + hop * 0.06; wide *= 1.02 - hop * 0.04;
@@ -1077,12 +1079,17 @@
                         lean -= 0.06;
                     }
                     if (u.fly) {
-                        oy -= 30 + Math.sin(clock * 0.12) * 6 + (pose === 2 ? 4 : pose === 1 ? -3 : 0);
+                        oy -= 30 + Math.sin(clock * 0.12) * 6 + (pose === 2 ? -4 : pose === 1 ? 3 : 0);
                     }
-                } else if (act && since < 8 && !u.wall) {
-                    // Buildings jolt when they fire.
-                    const w = 1 - ease(since / 8);
-                    tall *= 1 - w * 0.1; wide *= 1 + w * 0.07; oy += w * 2;
+                } else if (u.type === 'catapult') {
+                    face = target && ax < 0 ? -1 : 1;
+                    // The arm flies up and over, then is cranked back until the next boulder is loaded.
+                    if (act) pose = since < 3 ? 1 : since < 12 ? 2 : u.cdLeft > u.cd * 0.35 ? 1 : 0;
+                    if (act && since < 8) { const w = 1 - ease(since / 8); lean += w * 0.12; ox += ax * 5 * w; oy += ay * 5 * w - w * 3; tall *= 1 + w * 0.05; }
+                } else if (u.type === 'tower') {
+                    // The flag flutters; a shot flashes from the top and jolts the stones.
+                    pose = act && since < 4 ? 2 : Math.floor(now / 380 + u.id) & 1;
+                    if (act && since < 6) { const w = 1 - ease(since / 6); tall *= 1 - w * 0.05; wide *= 1 + w * 0.04; }
                 }
                 // A blow knocks it back and flattens it for a moment.
                 const hitAge = t - (scene.hits.get(u.id) ?? -99);
