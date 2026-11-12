@@ -648,7 +648,6 @@
 
     // --- the battle --------------------------------------------------------------------
 
-    const TYPES = ['spear', 'knight', 'archer', 'goblin', 'mage', 'giant', 'dragon', 'tower', 'catapult'];
     const TEAM_COLOUR = {blue: '#3E7BEA', red: '#E5484D'};
     const art = {};
 
@@ -664,7 +663,8 @@
     }
 
     async function loadArt() {
-        const names = ['wall', 'ground', ...TYPES.flatMap((t) => [`${t}-blue`, `${t}-red`])];
+        // Troops come as strips of five poses; buildings as one picture.
+        const names = ['wall', 'ground', ...ANIMATED.flatMap((t) => [`${t}-blue-anim`, `${t}-red-anim`]), ...['tower', 'catapult'].flatMap((t) => [`${t}-blue`, `${t}-red`])];
         await Promise.all(names.map(async (n) => {
             const s = sprite(n);
             if (s.ok) return;
@@ -963,6 +963,9 @@
     }
 
     const ease = (x) => x * x * (3 - 2 * x);
+    // Poses in a troop's strip, POSE px each: idle, two steps, the wind-up and the strike.
+    const POSE = 256, WALK = [1, 0, 2, 0], WINDUP = 3, STRIKE = 4;
+    const ANIMATED = ['spear', 'knight', 'archer', 'goblin', 'mage', 'giant', 'dragon'];
 
     function draw(ctx, geo, cam, scene, alpha, now) {
         const {b, teams, flip} = scene;
@@ -1023,12 +1026,13 @@
 
         const star = STAR();
         for (const u of order) {
-            const s = art[u.wall ? 'wall' : `${u.type}-${teams[u.side]}`];
+            const strip = !u.fixed;
+            const s = art[u.wall ? 'wall' : (u.artKey || (u.artKey = `${u.type}-${teams[u.side]}${strip ? '-anim' : ''}`))];
             if (!s || !s.ok) continue;
             const x = u.sx, y = u.sy;
             const size = u.r * (u.wall ? 2.5 : u.fixed ? 3.3 : u.fly ? 4.2 : 3.7);
             // Every unit is a puppet on its feet: it leans, hops, squashes and stretches.
-            let ox = 0, oy = 0, face = 1, lean = 0, wide = 1, tall = 1;
+            let ox = 0, oy = 0, face = 1, lean = 0, wide = 1, tall = 1, pose = u.fly ? 1 + (Math.floor(now / 170 + u.id) & 1) : 0;
             const target = u.target >= 0 ? b.units[u.target] : null;
             let ax = 0, ay = 0;   // unit vector to the target, on screen
             if (target) {
@@ -1045,10 +1049,12 @@
                     if (u.frozen > b.tick) { /* stands stiff in the ice */ }
                     else if (moving) {
                         // A waddle: quick little feet for goblins, a heavy stomp for giants.
+                        // Two steps to a hop cycle: a foot forward at each top.
                         const ph = clock * (0.3 + u.speed * 0.035), hop = Math.abs(Math.sin(ph));
-                        oy -= hop * u.r * (u.fly ? 0 : 0.42);
-                        lean += Math.sin(ph) * 0.13 + 0.08;
-                        tall *= 0.94 + hop * 0.12; wide *= 1.05 - hop * 0.08;
+                        if (!u.fly) pose = WALK[Math.floor((ph / Math.PI) * 2 + 0.5) & 3];
+                        oy -= hop * u.r * (u.fly ? 0 : 0.3);
+                        lean += Math.sin(ph) * 0.05 + 0.04;
+                        tall *= 0.97 + hop * 0.06; wide *= 1.02 - hop * 0.04;
                     } else {
                         const br = Math.sin(clock * 0.16);
                         tall *= 1 + br * 0.03; wide *= 1 - br * 0.02;
@@ -1056,18 +1062,22 @@
                     if (act && act.kind === 'swing' && since < 8) {
                         // Wind up leaning back, then lunge into the blow and settle.
                         const p = since / 8;
-                        if (p < 0.25) { const w = ease(p / 0.25); lean -= w * 0.35; ox -= ax * u.r * 0.25 * w; oy -= ay * u.r * 0.25 * w; tall *= 1 - w * 0.08; }
-                        else { const w = 1 - ease((p - 0.25) / 0.75); lean += w * 0.55; ox += ax * u.r * 0.9 * w; oy += ay * u.r * 0.9 * w - w * u.r * 0.3; tall *= 1 + w * 0.12; wide *= 1 - w * 0.06; }
+                        const w = 1 - ease(p);
+                        pose = STRIKE;
+                        lean += w * 0.18; ox += ax * u.r * 0.8 * w; oy += ay * u.r * 0.8 * w - w * u.r * 0.25; tall *= 1 + w * 0.06;
                     } else if (act && act.kind === 'shoot' && since < 7) {
                         // The kick of a shot: back on the heels, squashed, then forward again.
                         const w = 1 - ease(since / 7);
-                        lean -= w * 0.3; ox -= ax * u.r * 0.45 * w; oy -= ay * u.r * 0.45 * w;
-                        tall *= 1 - w * 0.1; wide *= 1 + w * 0.1;
+                        pose = STRIKE;
+                        lean -= w * 0.12; ox -= ax * u.r * 0.4 * w; oy -= ay * u.r * 0.4 * w;
+                        tall *= 1 - w * 0.05; wide *= 1 + w * 0.05;
+                    } else if (act && since < u.cd + 4 && u.cdLeft <= Math.min(6, u.cd >> 1)) {
+                        // Still in the fight and about to strike again: wind up.
+                        pose = WINDUP;
+                        lean -= 0.06;
                     }
                     if (u.fly) {
-                        const flap = Math.sin(clock * 0.5);
-                        oy -= 30 + Math.sin(clock * 0.12) * 6;
-                        tall *= 1 + flap * 0.07; wide *= 1 - flap * 0.05; lean += 0.1;
+                        oy -= 30 + Math.sin(clock * 0.12) * 6 + (pose === 2 ? 4 : pose === 1 ? -3 : 0);
                     }
                 } else if (act && since < 8 && !u.wall) {
                     // Buildings jolt when they fire.
@@ -1089,7 +1099,8 @@
                 const cs = Math.cos(rot) * k * sc, sn = Math.sin(rot) * k * sc;
                 ctx.globalAlpha = Math.max(0, 1 - fade * fade);
                 ctx.setTransform(cs, sn, -sn, cs, (dx - cam.x + sx) * k, (dy - Math.sin(fade * Math.PI) * u.r * 1.6 - cam.y + sy) * k);
-                ctx.drawImage(s.img, -size / 2, -size / 2, size, size);
+                if (strip) ctx.drawImage(s.img, 0, 0, POSE, POSE, -size * 0.625, -size * (u.fly ? 0.625 : 0.775), size * 1.25, size * 1.25);
+                else ctx.drawImage(s.img, -size / 2, -size / 2, size, size);
                 ctx.setTransform(k, 0, 0, k, (-cam.x + sx) * k, (-cam.y + sy) * k);
                 ctx.globalAlpha = 1;
                 continue;
@@ -1097,11 +1108,15 @@
             // One transform about the feet: mirror, lean, squash. No save and restore.
             const rot = lean * face, cs = Math.cos(rot) * k, sn = Math.sin(rot) * k;
             ctx.setTransform(cs * wide * face, sn * wide * face, -sn * tall, cs * tall, (x + ox - cam.x + sx) * k, (feet - cam.y + sy) * k);
-            ctx.drawImage(s.img, -size / 2, -size, size, size);
+            // A strip pose shows a wider view than the old sprite, with the feet at 90% of its height.
+            const big = size * 1.25, top = u.fly ? -size / 2 - big / 2 : -big * 0.9;
+            if (strip) ctx.drawImage(s.img, pose * POSE, 0, POSE, POSE, -big / 2, top, big, big);
+            else ctx.drawImage(s.img, -size / 2, -size, size, size);
             const hit = b.tick - (scene.hits.get(u.id) ?? -99);
             if (hit < 3 && s.white) {
                 ctx.globalAlpha = 0.6 * (1 - hit / 3);
-                ctx.drawImage(s.white, -size / 2, -size, size, size);
+                if (strip) ctx.drawImage(s.white, pose * POSE, 0, POSE, POSE, -big / 2, top, big, big);
+                else ctx.drawImage(s.white, -size / 2, -size, size, size);
                 ctx.globalAlpha = 1;
             }
             if (u.frozen > b.tick) {

@@ -45,9 +45,9 @@
 
     // --- pictures ----------------------------------------------------------------------------
 
-    const heads = LOOKS.map((l) => `virus-${l}`), bodies = LOOKS.map((l) => `body-${l}`);
+    const heads = LOOKS.map((l) => `virus-${l}`), bites = LOOKS.map((l) => `virus-${l}-bite`), bodies = LOOKS.map((l) => `body-${l}`);
     const NAMES = ['dish', 'hero', 'heart', 'pill', 'scalpel', 'bubble', 'tower', 'satellite', 'maw', 'dna', 'swab',
-        ...LOOKS.flatMap((l) => [`virus-${l}`, `body-${l}`])];
+        'hero-shoot', 'hero-blink', ...LOOKS.flatMap((l) => [`virus-${l}`, `virus-${l}-bite`, `body-${l}`])];
     const pics = {};
     let loaded = null;
     function loadPics() {
@@ -384,8 +384,10 @@
                 }
                 const size = s.r * (head ? 2.7 : 2.5);
                 if (head) {
-                    turned(heads[ch.look], size, x, y, tilt, pulse);
-                    if (flash) { g.globalAlpha = 0.5; const s2 = sized(heads[ch.look], size * k, true); if (s2) g.drawImage(s2, -size / 2, -size / 2, size, size); g.globalAlpha = 1; }
+                    // Jaws snap open for a moment, each head in its own rhythm, and when it is hit.
+                    const name = !calm() && (punch > 0 || (t * 1.1 + s.id * 0.37) % 1 < 0.28) ? bites[ch.look] : heads[ch.look];
+                    turned(name, size, x, y, tilt, pulse);
+                    if (flash) { g.globalAlpha = 0.5; const s2 = sized(name, size * k, true); if (s2) g.drawImage(s2, -size / 2, -size / 2, size, size); g.globalAlpha = 1; }
                     base();
                 } else {
                     turned(bodies[ch.look], size, x, y, t * 0.9 + s.id, pulse);
@@ -418,7 +420,8 @@
         const still2 = calm();
         const kx = still2 ? 0 : -Math.cos(kickA) * 7 * kick, ky = still2 ? 0 : -Math.sin(kickA) * 7 * kick;
         const bounce = still2 ? 0 : Math.abs(Math.sin(t * 4)) * 3;
-        turned('hero', 66, cell.x + kx, cell.y + ky - bounce, still2 ? 0 : Math.sin(t * 2.2) * 0.08 + Math.cos(kickA) * 0.2 * kick, 1 + kick * 0.1 + (still2 ? 0 : Math.sin(t * 8) * 0.02));
+        const heroPose = kick > 0.35 ? 'hero-shoot' : !still2 && (t + 0.4) % 3.2 < 0.16 ? 'hero-blink' : 'hero';
+        turned(heroPose, 66, cell.x + kx, cell.y + ky - bounce, still2 ? 0 : Math.sin(t * 2.2) * 0.08 + Math.cos(kickA) * 0.2 * kick, 1 + kick * 0.1 + (still2 ? 0 : Math.sin(t * 8) * 0.02));
         base();
         const armed = new Map(run.armed);
         const sc = armed.get('scalpel');
