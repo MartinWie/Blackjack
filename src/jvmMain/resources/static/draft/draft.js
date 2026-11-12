@@ -9,7 +9,8 @@
  * changed: a pick flies to the army, a round both have drafted is fought, a new round or
  * match is dealt. Two phones in a room derive the same battles from it.
  *
- * Progress is one localStorage key: trophies, the name, and a solo match in progress.
+ * Progress is one localStorage key: trophies, the name, a solo match in progress, and
+ * the hidden custom mode (found through the mage under the rules) with its own match.
  */
 (function () {
     'use strict';
@@ -40,19 +41,24 @@
         stage: $('stage'), draft: $('draft'), roundName: $('round-name'), pickLine: $('pick-line'), comeback: $('comeback'),
         offer: $('offer'), prompt: $('prompt'), field: $('field'), banner: $('banner'), panel: $('panel'),
         homeBtn: $('home-btn'), fastBtn: $('fast-btn'), helpBtn: $('help-btn'),
+        custom: $('custom'), customHearts: $('custom-hearts'), customPicks: $('custom-picks'), customPlay: $('custom-play'), customRoom: $('custom-room'),
         fly: $('fly'), sheet: $('sheet'), sheetBody: $('sheet-body'), sheetClose: $('sheet-close'),
     };
 
     // --- store ------------------------------------------------------------------------
 
     function load() {
-        const fresh = {trophies: 0, wins: 0, losses: 0, name: NAMES[Math.floor(Math.random() * NAMES.length)], fast: false, solo: null};
+        const fresh = {trophies: 0, wins: 0, losses: 0, name: NAMES[Math.floor(Math.random() * NAMES.length)], fast: false, solo: null,
+            secret: false, custom: {hearts: E.HEARTS, picks: E.STANDARD.picks}, customSolo: null};
         try {
             const saved = JSON.parse(localStorage.getItem(STORE_KEY));
             if (saved && typeof saved === 'object') {
                 const out = {...fresh, ...saved};
                 // A match saved under the old rules (one list of picks per round) cannot be replayed.
-                if (out.solo && !(Array.isArray(out.solo.picks) && Array.isArray(out.solo.picks[0]) && Array.isArray(out.solo.picks[0][0]))) out.solo = null;
+                const old = (m) => m && !(Array.isArray(m.picks) && Array.isArray(m.picks[0]) && Array.isArray(m.picks[0][0]));
+                if (old(out.solo)) out.solo = null;
+                if (old(out.customSolo)) out.customSolo = null;
+                if (!out.custom || typeof out.custom !== 'object') out.custom = fresh.custom;
                 return out;
             }
         } catch (_) { /* private mode or junk */ }
@@ -148,8 +154,8 @@
     let table = null;
     let onState = () => {};
 
-    const newSolo = () => ({
-        code: '', you: 0, seed: 1 + Math.floor(Math.random() * 2147483000), match: 0,
+    const newSolo = (rules = E.STANDARD) => ({
+        code: '', you: 0, seed: 1 + Math.floor(Math.random() * 2147483000), match: 0, rules,
         seats: [{name: store.name, connected: true}, {name: BOTS[Math.floor(Math.random() * BOTS.length)], connected: true}],
         picks: [[[], []]], ready: [false, false], rematch: [false, false], turnLeftMs: null, recorded: false,
         boost: [false, rankOf(store.trophies) >= RICH_FROM],
@@ -163,26 +169,36 @@
         return copy;
     }
 
-    /** Against a bot, here and offline. The match is saved after every move. */
-    function soloTable() {
-        if (!store.solo) store.solo = newSolo();
+    /**
+     * Against a bot, here and offline. The match is saved after every move, in `slot`:
+     * `solo` for the ranked match, `customSolo` for one on custom rules.
+     */
+    function soloTable(slot, rules) {
+        if (!store[slot]) store[slot] = newSolo(rules);
         let thinking = false;
         const t = {
-            kind: 'solo',
-            emit() { save(); onState(masked(store.solo)); t.bot(); },
+            kind: 'solo', slot,
+            emit() {
+                // Results are kept with the match (for this build), so a reload of a long one need not refight every round.
+                const s = store[slot];
+                s.results = {build: BUILD, list: resultsOf(s, s.picks.length)};
+                save();
+                onState(masked(s));
+                t.bot();
+            },
             pick(choice, round, pick) {
-                const s = store.solo;
-                if (round !== s.picks.length - 1 || pick !== s.picks[round][0].length || pick >= E.picksIn(round)) return;
+                const s = store[slot];
+                if (round !== s.picks.length - 1 || pick !== s.picks[round][0].length || pick >= E.picksIn(round, s.rules)) return;
                 s.picks[round][0].push(choice);
                 t.emit();
             },
-            next() { store.solo.picks.push([[], []]); t.emit(); },
-            rematch() { store.solo = newSolo(); t.emit(); },
+            next() { store[slot].picks.push([[], []]); t.emit(); },
+            rematch() { store[slot] = newSolo(store[slot].rules); t.emit(); },
             leave() { thinking = false; },
             /** The bot drafts alongside the player, one pick after a short think. */
             async bot() {
-                const s = store.solo, round = s.picks.length - 1, mine = s.picks[round][1], made = mine.length;
-                if (thinking || made >= E.picksIn(round) || s.recorded) return;
+                const s = store[slot], round = s.picks.length - 1, mine = s.picks[round][1], made = mine.length;
+                if (thinking || made >= E.picksIn(round, s.rules) || s.recorded) return;
                 thinking = true;
                 const started = performance.now();
                 const careless = Math.random() < SLIP[rankOf(store.trophies)];
@@ -191,7 +207,7 @@
                 await sleep(Math.max(0, 900 + Math.random() * 1100 - (performance.now() - started)));
                 if (!thinking) return;
                 thinking = false;
-                if (table !== t || store.solo !== s || s.picks.length - 1 !== round || mine.length !== made) return;
+                if (table !== t || store[slot] !== s || s.picks.length - 1 !== round || mine.length !== made) return;
                 mine.push(choice);
                 t.emit();
             },
@@ -264,7 +280,7 @@
     /** Both seats made every pick of `round`, and both are shown. */
     function sealed(s, round) {
         const p = s.picks[round];
-        return !!p && p.every((choices) => choices.length >= E.picksIn(round) && choices.every((c) => c >= 0));
+        return !!p && p.every((choices) => choices.length >= E.picksIn(round, s.rules) && choices.every((c) => c >= 0));
     }
 
     /** What each seat holds for the battle of `round` (the rival's hidden picks left out). */
@@ -274,7 +290,7 @@
     /** Winners of the first `upTo` rounds; each needs the ones before it (a lost round enriches offers). */
     function resultsOf(s, upTo) {
         const key = `${s.seed}:${s.match}`;
-        let list = won.get(key) || [];
+        let list = won.get(key) || (s.results && s.results.build === BUILD ? s.results.list : []);
         for (let r = list.length; r < upTo && sealed(s, r); r++) {
             const h = handsAt(s, r, list);
             list = list.concat(E.fight(h[0], h[1], r, E.battleSeed(s.seed, s.match, r)).winner);
@@ -288,8 +304,15 @@
     /** Hearts so far: every round before the current one, and it too once watched. */
     function scoreOf(s, watched) {
         const round = s.picks.length - 1;
-        return E.score(resultsOf(s, watched && sealed(s, round) ? round + 1 : round));
+        return E.score(resultsOf(s, watched && sealed(s, round) ? round + 1 : round), s.rules);
     }
+
+    const heartsOf = (s) => (s.rules || E.STANDARD).hearts;
+    const sameRules = (a, b) => !!a && !!b && a.hearts === b.hearts && a.firstPicks === b.firstPicks && a.picks === b.picks;
+    const isCustom = (rules) => !!rules && !sameRules(rules, E.STANDARD);
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    /** Custom rules as a line: "7 hearts, 4 cards a round". */
+    const rulesLine = (r) => `${plural(r.hearts, 'heart')}, ${plural(r.picks, 'card')} a round`;
 
     // --- screens ------------------------------------------------------------------------
 
@@ -327,12 +350,34 @@
         els.botLine.textContent = resume ? `Resume against ${store.solo.seats[1].name}` : `Against a ${RANKS[r][0]} rival · three hearts each`;
         els.playBot.querySelector('span').textContent = resume ? 'Resume' : 'Play';
         els.myName.textContent = store.name;
+        renderCustom();
         const online = navigator.onLine;
         els.createRoom.disabled = !online || joining;
+        els.customRoom.disabled = !online || joining;
         els.joinForm.querySelector('button').disabled = !online || joining;
         if (!online) note('Rooms need a connection. Play works offline.');
         else if (els.roomNote.dataset.offline) note('');
         els.roomNote.dataset.offline = online ? '' : '1';
+    }
+
+    /** The custom panel, once the mage has shown it: its numbers, and Resume for a match on them. */
+    function renderCustom() {
+        els.custom.hidden = !store.secret;
+        if (!store.secret) return;
+        const rules = customChoice(), s = store.customSolo;
+        if (document.activeElement !== els.customHearts) els.customHearts.value = rules.hearts;
+        if (document.activeElement !== els.customPicks) els.customPicks.value = rules.picks;
+        const resume = s && !s.recorded && sameRules(s.rules, rules);
+        els.customPlay.textContent = resume ? `Resume against ${s.seats[1].name}` : 'Play the bot';
+    }
+
+    const customChoice = () => E.customRules(store.custom.hearts, store.custom.picks);
+
+    function setCustom(field, value) {
+        store.custom = {...store.custom, [field]: value};
+        const fit = customChoice();
+        store.custom = {hearts: fit.hearts, picks: fit.picks};
+        save();
     }
 
     function note(text, bad = false) {
@@ -340,9 +385,19 @@
         els.roomNote.classList.toggle('bad', bad);
     }
 
-    function startSolo() {
-        if (store.solo && store.solo.recorded) store.solo = null;
-        table = soloTable();
+    /** The ranked match against the bot, or (`rules`) one on custom rules, resumed when it is on the same. */
+    function startSolo(rules) {
+        const slot = rules ? 'customSolo' : 'solo', s = store[slot];
+        if (s && !s.recorded && rules && !sameRules(s.rules, rules)
+            && !confirm(`Start a new custom match? The one against ${s.seats[1].name} (${rulesLine(s.rules)}) ends.`)) {
+            // Back to that match's numbers, so the button resumes it.
+            store.custom = {hearts: s.rules.hearts, picks: s.rules.picks};
+            save();
+            renderCustom();
+            return;
+        }
+        if (s && (s.recorded || (rules && !sameRules(s.rules, rules)))) store[slot] = null;
+        table = soloTable(slot, rules);
         begin();
         showScreen('match');
         table.emit();
@@ -381,14 +436,14 @@
         }
     }
 
-    async function createRoom() {
+    async function createRoom(rules) {
         if (joining) return;
         joining = true;
         renderHome();
         note('Opening a room…');
         let code = null;
         try {
-            code = (await api('/rooms')).code;
+            code = (await api('/rooms', rules ? {hearts: rules.hearts, picks: rules.picks} : {})).code;
         } catch (e) { note(e.message, true); }
         joining = false;
         if (code) await joinRoom(code);
@@ -480,7 +535,7 @@
         showScreen('lobby');
         els.roomCode.textContent = s.code;
         els.roomTag.querySelector('b').textContent = s.code;
-        els.lobbyNote.textContent = 'Waiting for your friend to join…';
+        els.lobbyNote.textContent = `${isCustom(s.rules) ? `Custom match: ${rulesLine(s.rules)}. ` : ''}Waiting for your friend to join…`;
     }
 
     /** Names, hearts, how far each side is with its picks, and both armies. */
@@ -489,9 +544,9 @@
         els.youName.textContent = mine ? mine.name : 'You';
         els.themName.textContent = rival ? rival.name : 'Rival';
         const {hearts} = scoreOf(s, view && view.watched);
-        renderHearts(els.youHearts, hearts[me(s)]);
-        renderHearts(els.themHearts, hearts[them(s)]);
-        const need = E.picksIn(round), drafting = !sealed(s, round);
+        renderHearts(els.youHearts, hearts[me(s)], heartsOf(s));
+        renderHearts(els.themHearts, hearts[them(s)], heartsOf(s));
+        const need = E.picksIn(round, s.rules), drafting = !sealed(s, round);
         const minePicked = s.picks[round][me(s)].length, theirsPicked = s.picks[round][them(s)].length;
         els.youStatus.textContent = !drafting ? '' : minePicked >= need ? 'Army ready' : `Picking ${minePicked + 1} of ${need}`;
         els.themStatus.textContent = table.kind === 'room' && (!rival || rival.left) ? 'Left the room'
@@ -504,12 +559,21 @@
         renderArmy(els.themArmy, hands[them(s)], 'red', s.picks[round][them(s)].filter((c) => c < 0).length);
     }
 
-    function renderHearts(el, n) {
-        const had = Number(el.dataset.n ?? E.HEARTS);
+    function renderHearts(el, n, total) {
+        const had = Number(el.dataset.n ?? total);
         el.dataset.n = n;
-        el.setAttribute('aria-label', `${n} of ${E.HEARTS} hearts`);
+        el.setAttribute('aria-label', `${n} of ${total} hearts`);
         el.innerHTML = '';
-        for (let k = 0; k < E.HEARTS; k++) {
+        // Past five, one heart and a count.
+        if (total > 5) {
+            const i = document.createElement('i'), b = document.createElement('b');
+            if (n <= 0) i.className = 'lost';
+            if (n < had) i.classList.add('breaking');
+            b.textContent = Math.max(0, n);
+            el.append(i, b);
+            return;
+        }
+        for (let k = 0; k < total; k++) {
             const i = document.createElement('i');
             if (k >= n) i.className = k < had ? 'lost breaking' : 'lost';
             el.append(i);
@@ -554,7 +618,7 @@
 
     /** The cards of your next pick, or word on your rival once your army is ready. */
     function renderOffer(s) {
-        const round = s.picks.length - 1, k = s.picks[round][me(s)].length, need = E.picksIn(round);
+        const round = s.picks.length - 1, k = s.picks[round][me(s)].length, need = E.picksIn(round, s.rules);
         const rival = s.seats[them(s)], name = rival ? rival.name : 'Your rival';
         clearClock();
         if (k >= need) {
@@ -579,7 +643,7 @@
                 els.offer.append(card);
             });
         }
-        say(round === 0 ? `Pick ${need} cards for your army.` : `Your army stays. Add ${need} more cards.`);
+        say(round === 0 ? `Pick ${plural(need, 'card')} for your army.` : `Your army stays. Add ${need} more ${need === 1 ? 'card' : 'cards'}.`);
         if (s.turnLeftMs != null) startClock(s.turnLeftMs - (performance.now() - s.at), s.turnMs);
     }
 
@@ -1281,7 +1345,7 @@
         if (over) {
             h.textContent = winner === mine ? 'Victory!' : winner === -1 ? 'A draw' : 'Defeat';
             h.className = winner === mine ? 'win' : winner === -1 ? '' : 'lose';
-            sub.textContent = winner === mine ? `${name} is out of hearts.` : winner === -1 ? `Both armies stood after ${E.MAX_ROUNDS} rounds.` : `Out of hearts against ${name}.`;
+            sub.textContent = winner === mine ? `${name} is out of hearts.` : winner === -1 ? `Both armies stood after ${E.maxRounds(s.rules)} rounds.` : `Out of hearts against ${name}.`;
         } else {
             h.textContent = rw === mine ? 'Round won!' : rw === -1 ? 'Round drawn' : 'Round lost';
             h.className = rw === mine ? 'win' : rw === -1 ? '' : 'lose';
@@ -1289,7 +1353,13 @@
                 : rw === -1 ? 'Nobody loses a heart.' : `You lose a heart. Rarer cards for you next round.`;
         }
         p.append(h, sub);
-        if (over && table.kind === 'solo') p.append(...trophyLines(winner === mine ? 1 : winner === -1 ? 0 : -1));
+        if (over && table.kind === 'solo') {
+            if (table.slot === 'solo') p.append(...trophyLines(winner === mine ? 1 : winner === -1 ? 0 : -1));
+            else {
+                const solo = store.customSolo;
+                if (solo && solo.seed === s.seed && !solo.recorded) { solo.recorded = true; save(); }
+            }
+        }
         const row = document.createElement('div');
         row.className = 'row';
         const btn = (text, cls, fn) => { const b = document.createElement('button'); b.className = cls; b.textContent = text; b.addEventListener('click', fn); row.append(b); return b; };
@@ -1312,8 +1382,8 @@
         p.append(row);
         p.hidden = false;
         p.style.animation = wasShown ? 'none' : '';
-        renderHearts(els.youHearts, hearts[mine]);
-        renderHearts(els.themHearts, hearts[1 - mine]);
+        renderHearts(els.youHearts, hearts[mine], heartsOf(s));
+        renderHearts(els.themHearts, hearts[1 - mine], heartsOf(s));
     }
 
     /** Solo only: trophies won or lost, counted once per match. */
@@ -1367,7 +1437,35 @@
             <h3>Boosts</h3><div class="legend">${legend(byKind('buff'))}</div>
             <h3>Spells</h3><div class="legend">${legend(byKind('spell'))}</div>
             <h3>Buildings</h3><div class="legend">${legend(byKind('def'))}</div>
-            <h3>Ranks</h3><p>Win against the camp's rivals for +${WIN} trophies, lose for −${LOSS}. ${RANKS.map(([n, t]) => `${n} ${t}`).join(' · ')}. Better ranks meet sharper rivals, and from ${RANKS[RICH_FROM][0]} on they draft from rarer cards.</p>`);
+            <h3>Ranks</h3><p>Win against the camp's rivals for +${WIN} trophies, lose for −${LOSS}. ${RANKS.map(([n, t]) => `${n} ${t}`).join(' · ')}. Better ranks meet sharper rivals, and from ${RANKS[RICH_FROM][0]} on they draft from rarer cards.</p>
+            <div class="mage-secret"><img id="secret-mage" class="${store.secret ? 'lit' : ''}" src="${IMG('mage-blue')}" alt="" draggable="false"><p id="mage-says"></p></div>`);
+        armMage();
+    }
+
+    /** Five taps or scrolls on the mage under the rules show the custom mode, five more hide it. */
+    function armMage() {
+        const mage = $('secret-mage'), says = $('mage-says');
+        let count = 0, lastWheel = -1e9, fromY = null;
+        const nudge = () => {
+            count++;
+            if (!calm()) mage.animate([{transform: 'none'}, {transform: `translateY(${-4 - count * 4}px) rotate(${count % 2 ? -10 : 10}deg) scale(${1 + count * 0.04})`}, {transform: 'none'}], {duration: 380, easing: 'ease-out'});
+            if (count < 5) return;
+            count = 0;
+            store.secret = !store.secret;
+            save();
+            renderHome();
+            mage.classList.toggle('lit', store.secret);
+            says.textContent = store.secret ? 'Custom mode found. It waits on the home screen.' : 'Custom mode hidden again.';
+        };
+        mage.addEventListener('click', nudge);
+        // A wheel or trackpad scroll sends a burst of events: one scroll counts once.
+        mage.addEventListener('wheel', (e) => { if (e.timeStamp - lastWheel > 300) nudge(); lastWheel = e.timeStamp; }, {passive: true});
+        // A swipe across it on a phone (a tap arrives as a click).
+        mage.addEventListener('touchstart', (e) => { fromY = e.touches[0].clientY; }, {passive: true});
+        mage.addEventListener('touchend', (e) => {
+            if (fromY !== null && Math.abs(e.changedTouches[0].clientY - fromY) > 12) nudge();
+            fromY = null;
+        }, {passive: true});
     }
 
     function openSheet(html) {
@@ -1402,15 +1500,27 @@
             all.forEach((c) => { c.classList.remove('locked'); c.setAttribute('aria-disabled', 'false'); });
         }
     });
-    els.playBot.addEventListener('click', startSolo);
-    els.createRoom.addEventListener('click', createRoom);
+    els.playBot.addEventListener('click', () => startSolo());
+    els.createRoom.addEventListener('click', () => createRoom());
+    els.customPlay.addEventListener('click', () => startSolo(customChoice()));
+    els.customRoom.addEventListener('click', () => createRoom(customChoice()));
+    for (const [input, field] of [[els.customHearts, 'hearts'], [els.customPicks, 'picks']]) {
+        input.addEventListener('change', () => { setCustom(field, input.value); input.value = store.custom[field]; renderCustom(); });
+    }
+    els.custom.addEventListener('click', (e) => {
+        const step = e.target.closest('[data-for]');
+        if (!step) return;
+        const field = step.dataset.for === 'custom-hearts' ? 'hearts' : 'picks';
+        setCustom(field, store.custom[field] + Number(step.dataset.d));
+        renderCustom();
+    });
     els.joinForm.addEventListener('submit', (e) => { e.preventDefault(); joinRoom(els.joinCode.value); });
     els.joinCode.addEventListener('input', () => { els.joinCode.value = els.joinCode.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
     els.myName.addEventListener('click', () => {
         const name = (prompt('Your name', store.name) || '').trim().slice(0, 18);
         if (!name) return;
         store.name = name;
-        if (store.solo && !store.solo.recorded) store.solo.seats[0].name = name;
+        for (const s of [store.solo, store.customSolo]) if (s && !s.recorded) s.seats[0].name = name;
         save();
         renderHome();
     });

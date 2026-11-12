@@ -241,7 +241,20 @@ Solo plays against a bot that tries each card on offer in quick battles against 
 rival has shown, which makes it counter-pick; it thinks in a worker (`draft-bot.js`) so
 the page never stalls. Lower ranks (Bronze to Master, by trophies) slip into random picks
 now and then, and from Gold on the bot drafts from rarer cards. A solo match in progress
-is saved and resumes. `npm run check:draft` keeps the battle deterministic, the server's
+is saved and resumes.
+
+A hidden custom mode sets the hearts (up to 99999) and the cards picked every round (1 to
+10). Tapping or scrolling five times on the mage at the foot of the rules shows it on the
+home screen (five more hide it). It plays the bot or opens a room: the room keeps its
+`DraftRules`, which every state carries, so the friend who joins plays the same rules.
+Custom matches against the bot are saved apart from the ranked one and count for no
+trophies. However many hearts, a match ends after 1000 rounds (`ROUND_LIMIT`, on both
+sides), the hearts left deciding: that bounds what a room keeps and sends. A long custom
+match grows armies past anything a standard one reaches, so a troop's worth is capped
+(`MAX_WORTH`) to keep every number finite, and a solo match keeps its results so a reload
+does not refight every round.
+
+`npm run check:draft` keeps the battle deterministic, the server's
 pick counts equal to the engine's, the ring intact, both seats even and the bot ahead of
 random drafting. It also fights every card against every other card of its rarity
 (`tools/draft-cards.mjs`): two armies share a base drawn from real offers, each adds one

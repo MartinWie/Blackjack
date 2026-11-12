@@ -7,10 +7,15 @@ import de.mw.blackjack.plugins.player
 import de.mw.blackjack.plugins.streamRoom
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
+
+/** Both empty for a standard match; either set opens a room on custom rules. */
+@Serializable
+private data class CreateRequest(val hearts: Int? = null, val picks: Int? = null)
 
 @Serializable
 private data class PickRequest(val round: Int, val pick: Int, val choice: Int)
@@ -30,7 +35,14 @@ fun Route.draftApi() {
     route("/api/draft") {
         post("/rooms") {
             call.player()
-            val room = DraftRooms.create(System.currentTimeMillis())
+            val body = try {
+                call.receive<CreateRequest>()
+            } catch (e: BadRequestException) {
+                return@post call.respond(HttpStatusCode.BadRequest, ApiError("a room needs whole numbers for its rules"))
+            }
+            val rules = if (body.hearts == null && body.picks == null) DraftRules.STANDARD
+            else DraftRules.custom(body.hearts ?: DraftRules.HEARTS, body.picks ?: DraftRules.PICKS)
+            val room = DraftRooms.create(System.currentTimeMillis(), rules)
                 ?: return@post call.respond(HttpStatusCode.ServiceUnavailable, ApiError("no free rooms right now"))
             call.respond(CreatedRoom(room.code))
         }

@@ -47,8 +47,10 @@ needs to know.
 - `static/gift.js` is the one power-up drop animation; both games call `Gift.show`.
 - **Draft Battle's battle must stay deterministic across browsers**: integers only in
   `draft-engine.js` (no `Math.random`, sin, cos, pow, hypot), or two phones in a room see
-  different battles. The server never sees a card; `DraftRoom.picksIn`, `OFFER` and
-  `MAX_ROUNDS` mirror the engine, and `check:draft` holds them equal. A rules change
+  different battles. The server never sees a card; `DraftRoom.OFFER` and `DraftRules`
+  (hearts, picks per round, rounds, the custom mode's limits) mirror the engine, and
+  `check:draft` holds them equal. A match's rules travel in its state (`rules`), so code
+  that counts picks or hearts takes them from there, never from the standard constants. A rules change
   moves `GOLDEN` in `tools/draft-check.mjs`; the troop ring check must keep passing.
 - **No Draft card may be the obvious pick.** `tools/draft-cards.mjs` (part of
   `check:draft`) fights every card against every other card of its rarity on shared

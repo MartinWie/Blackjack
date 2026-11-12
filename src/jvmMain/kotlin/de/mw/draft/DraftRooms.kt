@@ -34,14 +34,14 @@ object DraftRooms {
     const val IDLE_MILLIS = 30 * 60_000L
     private const val ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
-    fun create(now: Long): DraftRoom? {
+    fun create(now: Long, rules: DraftRules = DraftRules.STANDARD): DraftRoom? {
         if (rooms.size >= MAX_ROOMS) {
             logger.warn("Draft room ceiling reached ({}), refusing to create another", MAX_ROOMS)
             return null
         }
         repeat(20) {
             val code = (1..4).map { ALPHABET[Random.nextInt(ALPHABET.length)] }.joinToString("")
-            val room = DraftRoom(code, now)
+            val room = DraftRoom(code, now, rules = rules)
             if (rooms.putIfAbsent(code, room) == null) return room
         }
         return null

@@ -24,6 +24,26 @@ private fun DIV.toolButton(id: String, label: String, icon: String) {
     }
 }
 
+/** A number with a minus and a plus button; draft.js reads and bounds it. */
+private fun DIV.stepper(id: String, text: String) {
+    div(classes = "stepper") {
+        label { htmlFor = id; +text }
+        div(classes = "stepper-box") {
+            button(type = ButtonType.button, classes = "step") {
+                attributes["data-for"] = id; attributes["data-d"] = "-1"; attributes["aria-label"] = "$text, fewer"; +"−"
+            }
+            input(type = InputType.number, classes = "step-input") {
+                this.id = id
+                attributes["min"] = "1"
+                attributes["inputmode"] = "numeric"
+            }
+            button(type = ButtonType.button, classes = "step") {
+                attributes["data-for"] = id; attributes["data-d"] = "1"; attributes["aria-label"] = "$text, more"; +"+"
+            }
+        }
+    }
+}
+
 /**
  * Draft Battle: both players draft an army at once, it grows every round, and the
  * armies fight it out; a lost battle costs a heart. Solo against a bot works offline;
@@ -76,6 +96,21 @@ fun draftPage(): String = buildString {
                         id = "play-bot"
                         span { +"Play" }
                         small { id = "bot-line"; +"against the camp's best" }
+                    }
+                    // The hidden custom mode: the mage at the foot of the rules shows it.
+                    div(classes = "custom") {
+                        id = "custom"
+                        hidden = true
+                        h2 { +"Custom match" }
+                        div(classes = "steppers") {
+                            stepper("custom-hearts", "Hearts")
+                            stepper("custom-picks", "Cards a round")
+                        }
+                        div(classes = "row") {
+                            button(classes = "mid-btn") { id = "custom-play"; +"Play the bot" }
+                            button(classes = "mid-btn") { id = "custom-room"; +"Open a room" }
+                        }
+                        p(classes = "note") { +"Custom matches count for no trophies." }
                     }
                     div(classes = "friends") {
                         h2 { +"Play a friend" }

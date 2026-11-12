@@ -11,8 +11,8 @@ import kotlin.test.assertTrue
 
 class DraftRoomTest {
 
-    private fun seated(now: Long = 0): DraftRoom {
-        val room = DraftRoom("TEST", now, Random(1))
+    private fun seated(now: Long = 0, rules: DraftRules = DraftRules.STANDARD): DraftRoom {
+        val room = DraftRoom("TEST", now, Random(1), rules)
         assertEquals(0, room.join("a", "Ada", now))
         assertEquals(1, room.join("b", "Bo", now))
         return room
@@ -20,7 +20,7 @@ class DraftRoomTest {
 
     /** Both seats make every pick of [round]. */
     private fun draftRound(room: DraftRoom, round: Int, now: Long) {
-        repeat(DraftRoom.picksIn(round)) { pick ->
+        repeat(room.rules.picksIn(round)) { pick ->
             assertNull(room.pick("a", round, pick, pick % DraftRoom.OFFER, now))
             assertNull(room.pick("b", round, pick, (pick + 1) % DraftRoom.OFFER, now))
         }
@@ -73,7 +73,7 @@ class DraftRoomTest {
         assertEquals(listOf(false, false), state.ready)
         assertEquals(DraftRoom.TURN_MILLIS, state.turnLeftMs)
         draftRound(room, 1, 4)
-        assertEquals(DraftRoom.PICKS, room.snapshot("a", 4).picks[1][0].size)
+        assertEquals(DraftRules.PICKS, room.snapshot("a", 4).picks[1][0].size)
         assertNull(room.snapshot("a", 4).turnLeftMs)
     }
 
@@ -152,7 +152,7 @@ class DraftRoomTest {
         assertNull(room.next("a", 0, 3))
         assertEquals(2, room.snapshot("a", 3).picks.size)
         // Ready first, then the rival leaves: the round starts too.
-        repeat(DraftRoom.picksIn(1)) { assertNull(room.pick("a", 1, it, 0, 4)) }
+        repeat(DraftRules.STANDARD.picksIn(1)) { assertNull(room.pick("a", 1, it, 0, 4)) }
         // The clock drafts for the absent seat, which then comes back.
         room.tick(4 + DraftRoom.TURN_MILLIS)
         room.tick(4 + 2 * DraftRoom.TURN_MILLIS)
@@ -169,14 +169,45 @@ class DraftRoomTest {
         assertEquals("pick one of the cards on offer", room.pick("a", 0, 0, DraftRoom.OFFER, 1))
         assertEquals("pick one of the cards on offer", room.pick("a", 0, 0, -1, 1))
         assertEquals("you are not in this room", room.pick("z", 0, 0, 0, 1))
-        for (round in 0 until DraftRoom.MAX_ROUNDS) {
+        for (round in 0 until DraftRules.STANDARD.maxRounds) {
             draftRound(room, round, 2)
-            if (round < DraftRoom.MAX_ROUNDS - 1) {
+            if (round < DraftRules.STANDARD.maxRounds - 1) {
                 assertNull(room.next("a", round, 3))
                 assertNull(room.next("b", round, 3))
             }
         }
-        assertEquals("the match is over", room.next("a", DraftRoom.MAX_ROUNDS - 1, 4))
+        assertEquals("the match is over", room.next("a", DraftRules.STANDARD.maxRounds - 1, 4))
+    }
+
+    @Test
+    fun `a custom room counts its own picks and rounds`() {
+        val rules = DraftRules.custom(hearts = 2, picks = 4)
+        assertEquals(DraftRules(2, 4, 4), rules)
+        val room = seated(rules = rules)
+        assertEquals(rules, room.snapshot("a", 0).rules)
+        for (round in 0 until rules.maxRounds) {
+            draftRound(room, round, 1)
+            assertEquals(4, room.snapshot("a", 1).picks[round][0].size)
+            assertEquals("that pick is over", room.pick("a", round, 4, 0, 1))
+            if (round < rules.maxRounds - 1) {
+                assertNull(room.next("a", round, 2))
+                assertNull(room.next("b", round, 2))
+            }
+        }
+        assertEquals(10, rules.maxRounds)
+        assertEquals("the match is over", room.next("a", rules.maxRounds - 1, 3))
+        // A rematch keeps the room's rules.
+        assertNull(room.rematch("a", 0, 4))
+        assertNull(room.rematch("b", 0, 4))
+        assertEquals(rules, room.snapshot("a", 4).rules)
+    }
+
+    @Test
+    fun `custom rules stay in bounds`() {
+        assertEquals(DraftRules(1, 1, 1), DraftRules.custom(0, -3))
+        assertEquals(DraftRules(DraftRules.MAX_HEARTS, DraftRules.MAX_PICKS, DraftRules.MAX_PICKS), DraftRules.custom(Int.MAX_VALUE, 99))
+        assertEquals(DraftRules.ROUND_LIMIT, DraftRules.custom(Int.MAX_VALUE, 1).maxRounds)
+        assertEquals(20 * DraftRules.ROUNDS_PER_HEART, DraftRules.custom(20, 1).maxRounds)
     }
 
     @Test

@@ -38,12 +38,24 @@
 
     // --- the match -----------------------------------------------------------------
     //
-    // DraftRoom on the server mirrors OFFER, MAX_ROUNDS and picksIn; check:draft holds
-    // the two in step.
+    // DraftRoom and DraftRules on the server mirror OFFER, the rules and their limits;
+    // check:draft holds the two in step.
 
     const W = 720, H = 960, TICK_MS = 30, MAX_TICKS = 2000;
-    const HEARTS = 3, MAX_ROUNDS = 15, OFFER = 3;
-    const picksIn = (round) => (round === 0 ? 3 : 2);
+    const HEARTS = 3, ROUNDS_PER_HEART = 5, MAX_ROUNDS = HEARTS * ROUNDS_PER_HEART, OFFER = 3;
+    /** No match runs longer, however many hearts: it bounds a room's history and a reload's replay. */
+    const ROUND_LIMIT = 1000;
+    /** A match's rules. The hidden custom mode sets hearts and one pick count for every round. */
+    const STANDARD = {hearts: HEARTS, firstPicks: 3, picks: 2};
+    const MAX_HEARTS = 99999, MAX_PICKS = 10;
+    function customRules(hearts, picks) {
+        const fit = (v, hi) => Math.max(1, Math.min(hi, Math.floor(Number(v)) || 1));
+        const p = fit(picks, MAX_PICKS);
+        return {hearts: fit(hearts, MAX_HEARTS), firstPicks: p, picks: p};
+    }
+    const picksIn = (round, rules) => (round === 0 ? (rules || STANDARD).firstPicks : (rules || STANDARD).picks);
+    /** Rounds before the hearts left decide: enough for every heart and a run of drawn rounds. */
+    const maxRounds = (rules) => Math.min(ROUND_LIMIT, (rules || STANDARD).hearts * ROUNDS_PER_HEART);
 
     // --- units ---------------------------------------------------------------------
     //
@@ -224,11 +236,11 @@
             offer(seed, match, round, seat, k, boost || lostLast(results, round, seat))[c]));
     }
 
-    /** Hearts per seat after the rounds fought; `over` once someone has none (or MAX_ROUNDS are played). */
-    function score(results) {
-        const hearts = [HEARTS, HEARTS];
+    /** Hearts per seat after the rounds fought; `over` once someone has none (or every round is played). */
+    function score(results, rules) {
+        const all = (rules || STANDARD).hearts, hearts = [all, all];
         results.forEach((w) => { if (w >= 0) hearts[1 - w]--; });
-        const over = hearts[0] <= 0 || hearts[1] <= 0 || results.length >= MAX_ROUNDS;
+        const over = hearts[0] <= 0 || hearts[1] <= 0 || results.length >= maxRounds(rules);
         const winner = !over ? null : hearts[0] === hearts[1] ? -1 : hearts[0] > hearts[1] ? 0 : 1;
         return {hearts, over, winner};
     }
@@ -240,6 +252,8 @@
     /** Spells hit harder each round, as the armies they hit grow. */
     const spellScale = (round) => 100 + 30 * round;
     const MAX_BUILDINGS = 5, MAX_WALLS = 2;
+    /** A troop's worth stops here (hundredths), so a long custom match never overflows. */
+    const MAX_WORTH = 1e12;
 
     /**
      * What a seat's cards (per round kept) add up to. Troops are counted in hundredths
@@ -276,7 +290,9 @@
             // A multiplier on a troop not yet in the army multiplies a card's worth.
             a.worth[c.unit] = pct(a.worth[c.unit] || CARDS[TROOP_CARD[c.unit]].n * 100, f);
         }
-        for (let k = 0; k < a.berserk; k++) a.hp = pct(a.hp, 85);
+        // Even an overflow to Infinity lands on the cap.
+        for (const t of TROOPS) a.worth[t] = Math.min(MAX_WORTH, a.worth[t]);
+        for (let k = 0; k < a.berserk; k++) a.hp = Math.max(20, pct(a.hp, 85));
         const total = TROOPS.reduce((n, t) => n + a.worth[t], 0);
         for (const t of TROOPS) {
             const w = a.worth[t];
@@ -647,7 +663,8 @@
         return best;
     }
 
-    const api = {W, H, TICK_MS, MAX_TICKS, HEARTS, MAX_ROUNDS, OFFER, MAX_FIELD, UNITS, TYPES, TROOPS, CIRCLE, STRONG, WEAK,
+    const api = {W, H, TICK_MS, MAX_TICKS, HEARTS, ROUNDS_PER_HEART, MAX_ROUNDS, ROUND_LIMIT, OFFER, MAX_FIELD, UNITS, TYPES, TROOPS, CIRCLE, STRONG, WEAK,
+        STANDARD, MAX_HEARTS, MAX_PICKS, customRules, maxRounds,
         CARDS, TROOP_CARD, POWER, pw, factor, brings, hashSeed, rng, picksIn, offer, lostLast, cardsOf, score, growth, army, advantage, preyOf, foesOf,
         Battle, fight, battleSeed, botChoice};
     root.DraftEngine = api;

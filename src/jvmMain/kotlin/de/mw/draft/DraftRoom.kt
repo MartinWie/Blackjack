@@ -13,7 +13,12 @@ import kotlin.random.Random
  *
  * Every method locks the room; the sweep in [DraftRooms] broadcasts when [version] moves.
  */
-class DraftRoom(val code: String, createdAt: Long, private val random: Random = Random.Default) {
+class DraftRoom(
+    val code: String,
+    createdAt: Long,
+    private val random: Random = Random.Default,
+    val rules: DraftRules = DraftRules.STANDARD,
+) {
 
     /** `left`: gone mid-match. The seat stays theirs and the clock picks for them. */
     private class Seat(val playerId: String, var name: String, var connected: Boolean = false, var left: Boolean = false)
@@ -43,7 +48,7 @@ class DraftRoom(val code: String, createdAt: Long, private val random: Random = 
     private val nobodyHere get() = seats.all { it == null || it.left }
 
     private fun newRound() = List(2) { mutableListOf<Int>() }
-    private fun owes(seat: Int) = picks.last()[seat].size < picksIn(round)
+    private fun owes(seat: Int) = picks.last()[seat].size < rules.picksIn(round)
     private val roundDone get() = (0..1).none(::owes)
     private fun seatOf(playerId: String) = seats.indexOfFirst { it?.playerId == playerId }
 
@@ -134,7 +139,7 @@ class DraftRoom(val code: String, createdAt: Long, private val random: Random = 
         val seat = seatOf(playerId)
         if (seat < 0) return "you are not in this room"
         if (round != this.round || !roundDone) return "that round is not over"
-        if (round + 1 >= MAX_ROUNDS) return "the match is over"
+        if (round + 1 >= rules.maxRounds) return "the match is over"
         ready[seat] = true
         advance(now)
         touch(now)
@@ -146,7 +151,7 @@ class DraftRoom(val code: String, createdAt: Long, private val random: Random = 
      * the clock drafts for it, so the player still here can play the match out.
      */
     private fun advance(now: Long) {
-        if (!roundDone || round + 1 >= MAX_ROUNDS || ready.none { it }) return
+        if (!roundDone || round + 1 >= rules.maxRounds || ready.none { it }) return
         if ((0..1).all { ready[it] || seats[it]?.left == true }) {
             picks.add(newRound())
             ready.fill(false)
@@ -200,6 +205,7 @@ class DraftRoom(val code: String, createdAt: Long, private val random: Random = 
             seats = seats.map { it?.let { s -> DraftSeatView(s.name, s.connected, s.left) } },
             seed = seed,
             match = match,
+            rules = rules,
             picks = picks.mapIndexed { r, both ->
                 both.mapIndexed { seat, choices ->
                     if (r < round || sealed || seat == you) choices.toList() else choices.map { -1 }
@@ -222,13 +228,37 @@ class DraftRoom(val code: String, createdAt: Long, private val random: Random = 
     companion object {
         /** Mirrors draft-engine.js; check:draft holds the two equal. */
         const val OFFER = 3
+        const val TURN_MILLIS = 20_000L
+    }
+}
+
+/**
+ * A match's hearts and picks per round: [STANDARD], or a room opened in the hidden custom
+ * mode. The server only needs them to count picks and rounds; draft-engine.js has the same
+ * rules and limits, and check:draft holds the two equal.
+ */
+@Serializable
+data class DraftRules(val hearts: Int, val firstPicks: Int, val picks: Int) {
+    val maxRounds get() = minOf(ROUND_LIMIT, hearts * ROUNDS_PER_HEART)
+
+    fun picksIn(round: Int) = if (round == 0) firstPicks else picks
+
+    companion object {
+        const val HEARTS = 3
         const val FIRST_PICKS = 3
         const val PICKS = 2
-        const val MAX_ROUNDS = 15
-        const val TURN_MILLIS = 20_000L
+        const val ROUNDS_PER_HEART = 5
+        /** However many hearts, a match ends here: it bounds the picks a room keeps and sends. */
+        const val ROUND_LIMIT = 1000
+        const val MAX_HEARTS = 99999
+        const val MAX_PICKS = 10
+        val STANDARD = DraftRules(HEARTS, FIRST_PICKS, PICKS)
 
-        /** Picks each seat makes in [round]; draft-engine.js `picksIn` is the same rule. */
-        fun picksIn(round: Int) = if (round == 0) FIRST_PICKS else PICKS
+        /** Custom rules: one pick count for every round, both numbers kept in bounds. */
+        fun custom(hearts: Int, picks: Int): DraftRules {
+            val p = picks.coerceIn(1, MAX_PICKS)
+            return DraftRules(hearts.coerceIn(1, MAX_HEARTS), p, p)
+        }
     }
 }
 
@@ -243,6 +273,7 @@ data class DraftState(
     val seats: List<DraftSeatView?>,
     val seed: Int,
     val match: Int,
+    val rules: DraftRules,
     /** Per round, per seat, the choices made; -1 for a rival's pick not shown yet. */
     val picks: List<List<List<Int>>>,
     val ready: List<Boolean>,

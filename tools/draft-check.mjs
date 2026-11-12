@@ -24,21 +24,21 @@ check(!banned, `engine uses no inexact or random maths${banned ? `: ${[...new Se
  * A whole match: each seat's `policy(seat, round, pick, picks, results)` picks, rounds
  * are fought until a seat is out of hearts. Returns every round's battle too.
  */
-function playMatch(seed, policies, onFight) {
+function playMatch(seed, policies, onFight, rules) {
     const picks = [], results = [];
-    for (let round = 0; round < E.MAX_ROUNDS; round++) {
+    for (let round = 0; round < E.maxRounds(rules); round++) {
         picks.push([[], []]);
         for (const seat of [0, 1]) {
-            for (let k = 0; k < E.picksIn(round); k++) picks[round][seat].push(policies[seat](seat, round, k, picks, results));
+            for (let k = 0; k < E.picksIn(round, rules); k++) picks[round][seat].push(policies[seat](seat, round, k, picks, results));
         }
         const cards = [0, 1].map((seat) => E.cardsOf(seed, 0, picks, seat, results));
         const t = performance.now();
         const res = E.fight(cards[0], cards[1], round, E.battleSeed(seed, 0, round));
         if (onFight) onFight(res, cards, round, performance.now() - t);
         results.push(res.winner);
-        if (E.score(results).over) break;
+        if (E.score(results, rules).over) break;
     }
-    return {picks, results, ...E.score(results)};
+    return {picks, results, ...E.score(results, rules)};
 }
 const randomPolicy = (r) => () => Math.floor(r() * E.OFFER);
 const botPolicy = (seed) => (seat, round, k, picks, results) => E.botChoice(seed, 0, picks, round, seat, results);
@@ -67,13 +67,21 @@ for (let s = 1; s <= 24; s++) {
 const got = digest.toString(16).padStart(8, '0');
 check(got === GOLDEN, `the battle rules are the ones on record (digest ${got}${got === GOLDEN ? '' : `, expected ${GOLDEN}: update GOLDEN if the change is meant`})`);
 
-// 2. The server counts the same picks per round, offers and rounds as the engine.
+// 2. The server counts the same picks per round, offers and rounds as the engine, for
+// standard matches and custom ones.
 const konst = (name) => Number((room.match(new RegExp(`const val ${name} = (\\d+)\\b`)) || [])[1]);
 check(konst('OFFER') === E.OFFER, `DraftRoom.OFFER is ${E.OFFER}`);
-check(konst('MAX_ROUNDS') === E.MAX_ROUNDS, `DraftRoom.MAX_ROUNDS is ${E.MAX_ROUNDS}`);
+check(konst('HEARTS') === E.HEARTS && konst('ROUNDS_PER_HEART') === E.ROUNDS_PER_HEART && E.maxRounds() === E.MAX_ROUNDS,
+    `DraftRules has ${E.HEARTS} hearts and ${E.MAX_ROUNDS} rounds, like the engine`);
 check(konst('FIRST_PICKS') === E.picksIn(0) && konst('PICKS') === E.picksIn(1) && E.picksIn(5) === E.picksIn(1),
-    `DraftRoom picks ${E.picksIn(0)} in the first round and ${E.picksIn(1)} after, like the engine`);
-check(/fun picksIn\(round: Int\) = if \(round == 0\) FIRST_PICKS else PICKS/.test(room), 'DraftRoom.picksIn has the engine\'s rule');
+    `DraftRules picks ${E.picksIn(0)} in the first round and ${E.picksIn(1)} after, like the engine`);
+check(konst('MAX_HEARTS') === E.MAX_HEARTS && konst('MAX_PICKS') === E.MAX_PICKS, `custom rules stop at ${E.MAX_HEARTS} hearts and ${E.MAX_PICKS} picks on both`);
+check(konst('ROUND_LIMIT') === E.ROUND_LIMIT, `no match runs past ${E.ROUND_LIMIT} rounds on either`);
+check(/fun picksIn\(round: Int\) = if \(round == 0\) firstPicks else picks/.test(room) && /val maxRounds get\(\) = minOf\(ROUND_LIMIT, hearts \* ROUNDS_PER_HEART\)/.test(room),
+    'DraftRules counts picks and rounds by the engine\'s rules');
+const fit = E.customRules(0, 99), big = E.customRules(1e9, 4);
+check(fit.hearts === 1 && fit.picks === E.MAX_PICKS && fit.firstPicks === fit.picks && big.hearts === E.MAX_HEARTS && E.picksIn(0, big) === 4,
+    'custom rules are kept in bounds, one pick count for every round');
 
 // 3. The ring: an army of one troop beats the next one round and loses to the one
 // before, at the start of a match and deep into it; every troop has two it cannot beat.
@@ -138,6 +146,39 @@ const rates = Object.entries(card).filter(([, v]) => v.n >= 20).map(([id, v]) =>
 const lop = rates.filter(([, r]) => r < 35 || r > 75);
 check(!lop.length, `every card wins 35–75% of the battles of armies holding it${lop.length ? `: ${lop.map((r) => r.join(' ')).join(', ')}` : ''}`);
 console.log(`     ${rates.map(([id, r]) => `${id} ${r}`).join(' · ')}`);
+
+// 4b. Custom matches: they end on their own hearts, and a long one with big armies stays
+// in numbers (no Infinity or NaN) and quick to fight.
+for (const [hearts, picks] of [[1, 1], [6, 5]]) {
+    const rules = E.customRules(hearts, picks);
+    let ok = true;
+    for (let s = 1; s <= 10; s++) {
+        const r = E.rng(s * 4099);
+        const m = playMatch(s, [randomPolicy(r), randomPolicy(r)], (res, cards, round) => {
+            if (cards.some((byRound) => byRound[round].length !== picks)) ok = false;
+        }, rules);
+        const lost = m.results.filter((w) => w >= 0).length;
+        if (!m.over || m.picks.length > E.maxRounds(rules) || (m.winner >= 0 && m.hearts[1 - m.winner] !== 0) || lost > 2 * hearts - 1) ok = false;
+    }
+    check(ok, `custom matches of ${hearts} heart${hearts > 1 ? 's' : ''} and ${picks} pick${picks > 1 ? 's' : ''} a round end on their hearts`);
+}
+{
+    const rules = E.customRules(40, E.MAX_PICKS);
+    let finite = true, slow = 0, n = 0;
+    const r = E.rng(77);
+    const m = playMatch(77, [randomPolicy(r), randomPolicy(r)], (res, cards, round, ms) => {
+        n++;
+        slow = Math.max(slow, ms);
+        if (!res.hp.every(Number.isFinite)) finite = false;
+        for (const byRound of cards) {
+            const a = E.army(byRound);
+            if (!E.TROOPS.every((t) => Number.isFinite(a.worth[t]) && a.placed[t] <= E.MAX_FIELD)) finite = false;
+        }
+    }, rules);
+    check(finite, `a long custom match (${n} rounds of ${E.MAX_PICKS} picks) keeps every army and battle in numbers`);
+    timed(slow < 250, `its slowest battle simulates in ${slow.toFixed(0)} ms`);
+    if (!m.over) check(false, 'the long custom match ends');
+}
 
 // 5. The bot drafts better than chance, and the comeback offers keep matches alive.
 let botWins = 0, botMs = 0, botPicks = 0;
