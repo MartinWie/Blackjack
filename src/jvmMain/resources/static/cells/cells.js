@@ -175,6 +175,7 @@
 
     let run = null, raf = 0, last = 0, acc = 0, paused = false;
     let fx = [], shake = 0, dish = null, still = false, layout = null;
+    let heroShots = 0, kick = 0, kickA = 0;
     // Canvas resolution as a share of the device's; lowered a step when frames run long.
     let quality = 1, slow = 0;
 
@@ -357,22 +358,35 @@
             turned('swab', 40, z.x, z.y, t * 3 + z.x);
             base();
         }
-        for (const tw of run.towers) sprite('tower', 44, tw.x, tw.y - 8);
+        // Towers jolt as they fire.
+        for (const tw of run.towers) sprite('tower', 44, tw.x, tw.y - 8, false, 1 + Math.max(0, tw.cool / tw.rate - 0.75) * 0.7);
 
         // Viruses, tail first so heads sit on top; bodies turn slowly, a hit flashes white.
         for (const ch of run.chains) {
             for (let i = ch.segs.length - 1; i >= 0; i--) {
                 const s = ch.segs[i];
                 if (s.d < 0 || s.hp <= 0) continue;
-                const x = s.px + (s.x - s.px) * alpha, y = s.py + (s.y - s.py) * alpha;
+                let x = s.px + (s.x - s.px) * alpha, y = s.py + (s.y - s.py) * alpha;
                 const head = i === 0;
-                const pulse = calm() ? 1 : 1 + Math.sin(t * 6 + s.id) * 0.05;
-                const size = s.r * (head ? 2.7 : 2.5);
                 const flash = s.seen !== undefined && s.hp < s.seen;
                 s.seen = s.hp;
+                if (flash) s.hitAt = t;
+                // A blow swells it for a moment; the chain slithers side to side as it crawls.
+                const punch = Math.max(0, 1 - (t - (s.hitAt ?? -9)) / 0.18);
+                let pulse = 1 + punch * 0.22, tilt = 0;
+                if (!calm()) {
+                    const mx = s.x - s.px, my = s.y - s.py, ml = Math.hypot(mx, my) || 1;
+                    const sway = Math.sin(t * 7 - s.d * 0.07) * (s.slow > t ? 1 : 3.2);
+                    x += (-my / ml) * sway; y += (mx / ml) * sway;
+                    pulse *= 1 + Math.sin(t * 9 - s.d * 0.07) * 0.06;
+                    // Heads rock and snap their jaws.
+                    if (head) { tilt = Math.sin(t * 5 + s.id) * 0.22; pulse *= 1 + Math.max(0, Math.sin(t * 11 + s.id)) * 0.08; }
+                }
+                const size = s.r * (head ? 2.7 : 2.5);
                 if (head) {
-                    sprite(heads[ch.look], size, x, y, false, pulse);
-                    if (flash) { g.globalAlpha = 0.5; sprite(heads[ch.look], size, x, y, true, pulse); g.globalAlpha = 1; }
+                    turned(heads[ch.look], size, x, y, tilt, pulse);
+                    if (flash) { g.globalAlpha = 0.5; const s2 = sized(heads[ch.look], size * k, true); if (s2) g.drawImage(s2, -size / 2, -size / 2, size, size); g.globalAlpha = 1; }
+                    base();
                 } else {
                     turned(bodies[ch.look], size, x, y, t * 0.9 + s.id, pulse);
                     if (flash) { g.globalAlpha = 0.5; const s2 = sized(bodies[ch.look], size * k, true); if (s2) g.drawImage(s2, -size / 2, -size / 2, size, size); g.globalAlpha = 1; }
@@ -396,8 +410,16 @@
             g.drawImage(glow('rgba(110, 200, 255, .9)'), cell.x - 60, cell.y - 60, 120, 120);
             g.globalAlpha = 1;
         }
-        const wob = calm() ? 0 : Math.sin(t * 4) * 2;
-        sprite('hero', 66, cell.x, cell.y, false, 1 + wob / 66);
+        // The cell kicks back from every volley and leans into its aim.
+        const fired = run.shots.length;
+        if (fired > heroShots && fired) { kick = 1; kickA = run.shots[fired - 1].a; }
+        heroShots = fired;
+        kick = Math.max(0, kick - 0.09);
+        const still2 = calm();
+        const kx = still2 ? 0 : -Math.cos(kickA) * 7 * kick, ky = still2 ? 0 : -Math.sin(kickA) * 7 * kick;
+        const bounce = still2 ? 0 : Math.abs(Math.sin(t * 4)) * 3;
+        turned('hero', 66, cell.x + kx, cell.y + ky - bounce, still2 ? 0 : Math.sin(t * 2.2) * 0.08 + Math.cos(kickA) * 0.2 * kick, 1 + kick * 0.1 + (still2 ? 0 : Math.sin(t * 8) * 0.02));
+        base();
         const armed = new Map(run.armed);
         const sc = armed.get('scalpel');
         if (sc) {
@@ -412,8 +434,9 @@
         if (st) {
             for (let s2 = 0; s2 < st.count; s2++) {
                 const a = t * 1.6 + (s2 * Math.PI * 2) / st.count;
-                sprite('satellite', 30, cell.x + Math.cos(a) * 130, cell.y + Math.sin(a) * 130);
+                turned('satellite', 30, cell.x + Math.cos(a) * 130, cell.y + Math.sin(a) * 130 + Math.sin(t * 5 + s2) * 3, a + Math.PI / 2);
             }
+            base();
         }
 
         // Shots: trails and needles in one stroke each, pills and bubbles as sprites.

@@ -771,7 +771,25 @@
                 if (ev.strong) burst(scene, ev.x, ev.y - 12, 5, {speed: 4, life: 9, size: 4, colours: ['#FFE07A', '#fff'], glow: true});
                 else if (Math.random() < 0.3) burst(scene, ev.x, ev.y - 12, 2, {speed: 3, life: 6, size: 3, colours: ['#fff']});
                 break;
-            case 'swing': scene.swings.set(ev.id, {tick, target: ev.target}); break;
+            case 'swing': {
+                scene.swings.set(ev.id, {tick, kind: 'swing'});
+                const u = b.units[ev.id], v = b.units[ev.target];
+                // The blow lands a beat into the lunge: a slash where it hits, dust under a giant's club.
+                if (fx.length < 420) fx.push({t: 'slash', x: v.x, y: v.y - v.r, born: tick + 2, life: 5, r: u.r + 8, a: Math.atan2(v.y - u.y, v.x - u.x) + (scene.flip ? Math.PI : 0), dir: ev.id % 2 ? 1 : -1});
+                if (u.type === 'giant') {
+                    ring(v.x, v.y, 46, 'rgba(235, 225, 200, X)', 9, 5);
+                    burst(scene, v.x, v.y, 5, {speed: 3, life: 12, size: 7, colours: ['rgba(215,200,170,.7)'], rise: 0.5});
+                    scene.shake = Math.min(14, scene.shake + 1.2);
+                }
+                break;
+            }
+            case 'shoot': {
+                scene.swings.set(ev.id, {tick, kind: 'shoot'});
+                const u = b.units[ev.id];
+                if (u.type === 'mage') fx.push({t: 'glow', x: u.x, y: u.y - u.r * 2, r: 22, colour: '190, 130, 255', born: tick, life: 6});
+                else if (u.type === 'catapult') burst(scene, u.x, u.y, 4, {speed: 2.5, life: 10, size: 6, colours: ['rgba(215,200,170,.7)'], rise: 0.4});
+                break;
+            }
             case 'die': {
                 const u = b.units[ev.id];
                 burst(scene, u.x, u.y - u.r, 6, {speed: 2.2, life: 14, size: u.r * 0.55, colours: ['rgba(255,255,255,.85)', 'rgba(220,214,200,.8)'], rise: 0.6});
@@ -924,13 +942,34 @@
         return c;
     }
 
+    let calmGround = null;
+    /**
+     * The battlefield picture, toned down once: washed with a flat green and darkened a
+     * little, so its flowers and patches stay a backdrop and the troops stand out.
+     */
+    function groundLayer() {
+        if (calmGround) return calmGround;
+        if (!(art.ground && art.ground.ok)) return plainGround();
+        const c = document.createElement('canvas');
+        c.width = 620; c.height = 740;
+        const g = c.getContext('2d');
+        g.drawImage(art.ground.img, 0, 0, c.width, c.height);
+        g.fillStyle = 'rgba(122, 168, 92, .58)';
+        g.fillRect(0, 0, c.width, c.height);
+        g.fillStyle = 'rgba(24, 44, 20, .16)';
+        g.fillRect(0, 0, c.width, c.height);
+        calmGround = c;
+        return c;
+    }
+
+    const ease = (x) => x * x * (3 - 2 * x);
+
     function draw(ctx, geo, cam, scene, alpha, now) {
         const {b, teams, flip} = scene;
         const k = geo.w / cam.w;
         const sx = scene.shake > 0.3 ? rand(-scene.shake, scene.shake) : 0, sy = scene.shake > 0.3 ? rand(-scene.shake, scene.shake) : 0;
         ctx.setTransform(k, 0, 0, k, (-cam.x + sx) * k, (-cam.y + sy) * k);
-        const ground = art.ground && art.ground.ok ? art.ground.img : plainGround();
-        ctx.drawImage(ground, -MARGIN, -MARGIN, E.W + 2 * MARGIN, E.H + 2 * MARGIN);
+        ctx.drawImage(groundLayer(), -MARGIN, -MARGIN, E.W + 2 * MARGIN, E.H + 2 * MARGIN);
         const t = b.tick + alpha;
 
         // Scorch marks on the grass.
@@ -966,9 +1005,8 @@
         }
         ctx.fill();
         ctx.lineWidth = 2.4;
-        ctx.globalAlpha = 0.85;
         for (const side of [0, 1]) {
-            ctx.strokeStyle = TEAM_COLOUR[teams[side]];
+            ctx.strokeStyle = ctx.fillStyle = TEAM_COLOUR[teams[side]];
             ctx.beginPath();
             for (const u of order) {
                 if (!u.alive || u.wall || u.side !== side) continue;
@@ -976,6 +1014,9 @@
                 ctx.moveTo(u.sx + u.r * 1.05, cy);
                 ctx.ellipse(u.sx, cy, u.r * 1.05, u.r * 0.42, 0, 0, Math.PI * 2);
             }
+            ctx.globalAlpha = 0.3;
+            ctx.fill();
+            ctx.globalAlpha = 0.95;
             ctx.stroke();
         }
         ctx.globalAlpha = 1;
@@ -986,45 +1027,87 @@
             if (!s || !s.ok) continue;
             const x = u.sx, y = u.sy;
             const size = u.r * (u.wall ? 2.5 : u.fixed ? 3.3 : u.fly ? 4.2 : 3.7);
-            let ox = 0, oy = 0, face = 1;
-            if (!u.fixed && u.alive) {
-                const target = u.target >= 0 ? b.units[u.target] : null;
-                const dxt = target ? (flip ? u.x - target.x : target.x - u.x) : (flip ? u.px - u.x : u.x - u.px);
-                face = dxt < 0 ? -1 : 1;
-                if (u.x !== u.px || u.y !== u.py) oy -= Math.abs(Math.sin(t * 0.55 + u.id)) * u.r * 0.32;
-                const sw = scene.swings.get(u.id);
-                if (sw && t - sw.tick < 6 && target) {
-                    const tx = flip ? E.W - target.x : target.x, ty = flip ? E.H - target.y : target.y;
-                    const d = Math.hypot(tx - x, ty - y) || 1, push = Math.sin(((t - sw.tick) / 6) * Math.PI) * u.r * 0.6;
-                    ox += ((tx - x) / d) * push; oy += ((ty - y) / d) * push;
+            // Every unit is a puppet on its feet: it leans, hops, squashes and stretches.
+            let ox = 0, oy = 0, face = 1, lean = 0, wide = 1, tall = 1;
+            const target = u.target >= 0 ? b.units[u.target] : null;
+            let ax = 0, ay = 0;   // unit vector to the target, on screen
+            if (target) {
+                const tx = (flip ? E.W - target.x : target.x) - x, ty = (flip ? E.H - target.y : target.y) - y, d = Math.hypot(tx, ty) || 1;
+                ax = tx / d; ay = ty / d;
+            }
+            if (u.alive) {
+                const clock = now / 33 + u.id * 1.7;
+                const act = scene.swings.get(u.id);
+                const since = act ? t - act.tick : 99;
+                if (!u.fixed) {
+                    face = (target ? ax : (flip ? u.px - u.x : u.x - u.px)) < 0 ? -1 : 1;
+                    const moving = u.x !== u.px || u.y !== u.py;
+                    if (u.frozen > b.tick) { /* stands stiff in the ice */ }
+                    else if (moving) {
+                        // A waddle: quick little feet for goblins, a heavy stomp for giants.
+                        const ph = clock * (0.3 + u.speed * 0.035), hop = Math.abs(Math.sin(ph));
+                        oy -= hop * u.r * (u.fly ? 0 : 0.42);
+                        lean += Math.sin(ph) * 0.13 + 0.08;
+                        tall *= 0.94 + hop * 0.12; wide *= 1.05 - hop * 0.08;
+                    } else {
+                        const br = Math.sin(clock * 0.16);
+                        tall *= 1 + br * 0.03; wide *= 1 - br * 0.02;
+                    }
+                    if (act && act.kind === 'swing' && since < 8) {
+                        // Wind up leaning back, then lunge into the blow and settle.
+                        const p = since / 8;
+                        if (p < 0.25) { const w = ease(p / 0.25); lean -= w * 0.35; ox -= ax * u.r * 0.25 * w; oy -= ay * u.r * 0.25 * w; tall *= 1 - w * 0.08; }
+                        else { const w = 1 - ease((p - 0.25) / 0.75); lean += w * 0.55; ox += ax * u.r * 0.9 * w; oy += ay * u.r * 0.9 * w - w * u.r * 0.3; tall *= 1 + w * 0.12; wide *= 1 - w * 0.06; }
+                    } else if (act && act.kind === 'shoot' && since < 7) {
+                        // The kick of a shot: back on the heels, squashed, then forward again.
+                        const w = 1 - ease(since / 7);
+                        lean -= w * 0.3; ox -= ax * u.r * 0.45 * w; oy -= ay * u.r * 0.45 * w;
+                        tall *= 1 - w * 0.1; wide *= 1 + w * 0.1;
+                    }
+                    if (u.fly) {
+                        const flap = Math.sin(clock * 0.5);
+                        oy -= 30 + Math.sin(clock * 0.12) * 6;
+                        tall *= 1 + flap * 0.07; wide *= 1 - flap * 0.05; lean += 0.1;
+                    }
+                } else if (act && since < 8 && !u.wall) {
+                    // Buildings jolt when they fire.
+                    const w = 1 - ease(since / 8);
+                    tall *= 1 - w * 0.1; wide *= 1 + w * 0.07; oy += w * 2;
+                }
+                // A blow knocks it back and flattens it for a moment.
+                const hitAge = t - (scene.hits.get(u.id) ?? -99);
+                if (hitAge < 4 && !u.wall) {
+                    const w = 1 - hitAge / 4;
+                    if (!u.fixed) { ox -= ax * u.r * 0.35 * w; oy -= ay * u.r * 0.35 * w; lean -= w * 0.18; }
+                    tall *= 1 - w * 0.1; wide *= 1 + w * 0.1;
                 }
             }
-            if (u.fly) oy -= 30 + Math.sin(t * 0.12 + u.id) * 5;
-            const dx = x + ox, dy = y + oy - size * 0.48;
+            const dx = x + ox, dy = y + oy - size * 0.48, feet = y + oy + size * 0.02;
             if (!u.alive) {
-                const fade = (b.tick - u.died + alpha) / 16, sc = 1 - fade * 0.3, rot = (u.id % 2 ? 1 : -1) * fade * 1.4;
+                // Tossed up and over as it fades.
+                const fade = (b.tick - u.died + alpha) / 16, sc = 1 - fade * 0.3, rot = (u.id % 2 ? 1 : -1) * fade * 2.2;
                 const cs = Math.cos(rot) * k * sc, sn = Math.sin(rot) * k * sc;
-                ctx.globalAlpha = Math.max(0, 1 - fade);
-                ctx.setTransform(cs * face, sn * face, -sn, cs, (dx - cam.x + sx) * k, (dy + size * 0.2 - cam.y + sy) * k);
-                ctx.drawImage(s.img, -size / 2, -size * 0.7, size, size);
+                ctx.globalAlpha = Math.max(0, 1 - fade * fade);
+                ctx.setTransform(cs, sn, -sn, cs, (dx - cam.x + sx) * k, (dy - Math.sin(fade * Math.PI) * u.r * 1.6 - cam.y + sy) * k);
+                ctx.drawImage(s.img, -size / 2, -size / 2, size, size);
                 ctx.setTransform(k, 0, 0, k, (-cam.x + sx) * k, (-cam.y + sy) * k);
                 ctx.globalAlpha = 1;
                 continue;
             }
-            // Mirrored by the transform, not save and restore.
-            if (face < 0) ctx.setTransform(-k, 0, 0, k, (dx - cam.x + sx) * k, (dy - cam.y + sy) * k);
-            else ctx.setTransform(k, 0, 0, k, (dx - cam.x + sx) * k, (dy - cam.y + sy) * k);
-            ctx.drawImage(s.img, -size / 2, -size / 2, size, size);
+            // One transform about the feet: mirror, lean, squash. No save and restore.
+            const rot = lean * face, cs = Math.cos(rot) * k, sn = Math.sin(rot) * k;
+            ctx.setTransform(cs * wide * face, sn * wide * face, -sn * tall, cs * tall, (x + ox - cam.x + sx) * k, (feet - cam.y + sy) * k);
+            ctx.drawImage(s.img, -size / 2, -size, size, size);
             const hit = b.tick - (scene.hits.get(u.id) ?? -99);
             if (hit < 3 && s.white) {
                 ctx.globalAlpha = 0.6 * (1 - hit / 3);
-                ctx.drawImage(s.white, -size / 2, -size / 2, size, size);
+                ctx.drawImage(s.white, -size / 2, -size, size, size);
                 ctx.globalAlpha = 1;
             }
             if (u.frozen > b.tick) {
                 ctx.globalAlpha = 0.55;
                 ctx.fillStyle = '#BFE6FF';
-                ctx.fillRect(-size * 0.42, -size * 0.45, size * 0.84, size * 0.9);
+                ctx.fillRect(-size * 0.42, -size * 0.95, size * 0.84, size * 0.9);
                 ctx.globalAlpha = 1;
             }
             ctx.setTransform(k, 0, 0, k, (-cam.x + sx) * k, (-cam.y + sy) * k);
@@ -1153,6 +1236,13 @@
                 ctx.lineWidth = 14 * (1 - age * 0.5);
                 ctx.lineCap = 'round';
                 ctx.beginPath(); ctx.moveTo(x + len * 0.6, y - len); ctx.lineTo(x, y); ctx.stroke();
+            } else if (f.t === 'slash') {
+                // A crescent swept across the one that was hit.
+                const sweep = f.a - f.dir * 1.1 + f.dir * age * 1.6;
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.9 * (1 - age)})`;
+                ctx.lineWidth = 5 * (1 - age) + 1;
+                ctx.lineCap = 'round';
+                ctx.beginPath(); ctx.arc(x - Math.cos(f.a) * f.r * 0.6, y - Math.sin(f.a) * f.r * 0.6, f.r, Math.min(sweep, sweep + f.dir * 0.9), Math.max(sweep, sweep + f.dir * 0.9)); ctx.stroke();
             } else if (f.t === 'revive') {
                 ctx.fillStyle = `rgba(93, 200, 110, ${1 - age})`;
                 const yy = y - 34 - age * 34;
