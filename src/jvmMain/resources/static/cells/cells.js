@@ -639,6 +639,8 @@
         store.coins += coins;
         store.best[n] = Math.max(store.best[n] || 0, pct);
         if (won && n === store.reached) store.reached = n + 1;
+        // A win moves the chapter on now, so Home and the Lab show the next one too.
+        if (won) store.chapter = Math.min(store.reached, n + 1);
         save();
         const title = won ? 'Chapter cleared!' : run.quit ? 'Run abandoned' : 'The heart gave out';
         showOverlay(`<div class="end ${won ? 'won' : 'lost'}">
@@ -662,7 +664,7 @@
         const act = e.target.closest('[data-act]');
         if (!act) return;
         const what = act.dataset.act;
-        if (what === 'next') { store.chapter = Math.min(store.reached, store.chapter + 1); save(); startRun(); }
+        if (what === 'next') startRun();
         else if (what === 'retry') startRun();
         else if (what === 'home') stopRun();
         else if (what === 'lab') { stopRun(); showLab(); }
