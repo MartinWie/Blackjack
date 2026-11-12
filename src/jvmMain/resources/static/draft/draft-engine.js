@@ -130,6 +130,62 @@
         // Triples are worth the same pick: a touch less for the troops that snowball, more for archers.
         CARDS[`x3${t}`] = {kind: 'mul', unit: t, f: {knight: 230, mage: 230, archer: 420, spear: 350, goblin: 350}[t] || 300, rarity: 2, name};
     }
+    // How strong each card is, in percent of what its rule says: troops bring that share of
+    // soldiers, multipliers that share of their extra, boosts that share of their effect,
+    // spells that share of their damage or time, buildings that share of health and attack. `node tools/draft-cards.mjs --tune`
+    // sets these so no card is the obvious pick of its rarity; keep its output.
+    // POWER:BEGIN
+    const POWER = {
+        archers: 99,
+        armor: 173,
+        arms: 72,
+        berserk: 213,
+        bomb: 200,
+        catapult: 60,
+        dragon: 96,
+        fireball: 137,
+        frost: 99,
+        giant: 100,
+        goblins: 109,
+        haste: 108,
+        knights: 94,
+        lightning: 83,
+        mages: 90,
+        medics: 50,
+        meteor: 114,
+        rage: 190,
+        rally: 61,
+        shields: 137,
+        spears: 93,
+        vampire: 61,
+        wall: 150,
+        x2archer: 72,
+        x2giant: 102,
+        x2goblin: 63,
+        x2knight: 55,
+        x2mage: 49,
+        x2spear: 57,
+        x3archer: 48,
+        x3giant: 130,
+        x3goblin: 78,
+        x3knight: 140,
+        x3mage: 97,
+        x3spear: 61,
+    };
+    // POWER:END
+    const pw = (id) => POWER[id] || 100;
+    /** What a multiplier really multiplies by, in percent. */
+    const factor = (id) => 100 + pct(CARDS[id].f - 100, pw(id));
+    /** Soldiers a troop card brings when kept in `round`. */
+    const brings = (id, round) => Math.max(1, Math.floor(pct(CARDS[id].n * growth(round), pw(id)) / 100));
+    // Card texts say what the tuned cards really do.
+    for (const id of ['rally', 'arms']) CARDS[id].text = `+${factor(id) - 100}% of every troop`;
+    CARDS.rage.text = `+${pct(70, pw('rage'))}% attack`;
+    CARDS.armor.text = `+${pct(60, pw('armor'))}% health`;
+    CARDS.shields.text = `${pct(35, pw('shields'))}% less damage taken`;
+    CARDS.vampire.text = `+${pct(55, pw('vampire'))}% attack, and blows heal ${pw('vampire')}% of their damage`;
+    CARDS.berserk.text = `+${pct(200, pw('berserk'))}% attack, 15% less health`;
+    CARDS.medics.text = `Fallen troops get back up once, at ${Math.min(100, 35 + pct(pw('medics'), 25))}% health`;
     const BY_RARITY = [0, 1, 2].map((k) => Object.keys(CARDS).filter((id) => CARDS[id].rarity === k));
     const OPENERS = BY_RARITY[0].filter((id) => CARDS[id].kind === 'troop');
 
@@ -201,23 +257,24 @@
         byRound.forEach((ids, round) => {
             for (const id of ids) {
                 const c = CARDS[id];
-                if (c.kind === 'troop') a.worth[c.unit] += c.n * growth(round);
-                else if (c.kind === 'mul') muls.push(c);
+                if (c.kind === 'troop') a.worth[c.unit] += pct(c.n * growth(round), pw(id));
+                else if (c.kind === 'mul') muls.push(id);
                 else if (c.kind === 'def' || c.kind === 'spell') a[id]++;
-                else if (id === 'rage') a.atk += 70;
-                else if (id === 'armor') a.hp += 60;
-                else if (id === 'shields') a.guard = Math.max(25, pct(a.guard, 65));
-                else if (id === 'haste') a.haste++;
-                else if (id === 'vampire') { a.vamp += 100; a.atk += 55; }
-                else if (id === 'bomb') a.bomb++;
-                else if (id === 'medics') a.heal++;
-                else if (id === 'berserk') { a.atk += 200; a.berserk++; }
+                else if (id === 'rage') a.atk += pct(70, pw(id));
+                else if (id === 'armor') a.hp += pct(60, pw(id));
+                else if (id === 'shields') a.guard = Math.max(25, pct(a.guard, 100 - pct(35, pw(id))));
+                else if (id === 'haste') a.haste += pw(id);
+                else if (id === 'vampire') { a.vamp += pw(id); a.atk += pct(55, pw(id)); }
+                else if (id === 'bomb') a.bomb += pw(id);
+                else if (id === 'medics') a.heal += pw(id);
+                else if (id === 'berserk') { a.atk += pct(200, pw(id)); a.berserk++; }
             }
         });
-        for (const c of muls) {
-            if (!c.unit) { for (const t of TROOPS) a.worth[t] = pct(a.worth[t], c.f); continue; }
+        for (const id of muls) {
+            const c = CARDS[id], f = factor(id);
+            if (!c.unit) { for (const t of TROOPS) a.worth[t] = pct(a.worth[t], f); continue; }
             // A multiplier on a troop not yet in the army multiplies a card's worth.
-            a.worth[c.unit] = pct(a.worth[c.unit] || CARDS[TROOP_CARD[c.unit]].n * 100, c.f);
+            a.worth[c.unit] = pct(a.worth[c.unit] || CARDS[TROOP_CARD[c.unit]].n * 100, f);
         }
         for (let k = 0; k < a.berserk; k++) a.hp = pct(a.hp, 85);
         const total = TROOPS.reduce((n, t) => n + a.worth[t], 0);
@@ -263,7 +320,7 @@
         const base = UNITS[type], a = this.armies[side];
         const troop = !base.fixed;
         // Buildings grow with the round, like the armies they face.
-        const grow = troop ? a.vet[type] : pct(a.fort, this.scale);
+        const grow = troop ? a.vet[type] : pct(pct(a.fort, this.scale), pw(type));
         const hp = pct(pct(base.hp, troop ? a.hp : 100), grow);
         const vet = troop && grow > 100;
         const u = {
@@ -272,8 +329,8 @@
             range: base.range, r: base.r + (vet ? Math.min(8, Math.floor((grow - 100) / 60)) : 0),
             splash: base.splash || 0, cleave: base.cleave || 50, shot: base.shot || null,
             fixed: !!base.fixed, wall: !!base.wall, fly: !!base.fly, vet,
-            speed: troop ? pct(base.speed, 100 + 50 * Math.min(a.haste, 3)) : 0,
-            cd: Math.max(4, pct(base.cd, 100 - 22 * Math.min(a.haste, 3) - 13 * Math.min(a.haste, 1))), cdLeft: 0,
+            speed: troop ? pct(base.speed, 100 + pct(Math.min(a.haste, 300), 50)) : 0,
+            cd: Math.max(4, pct(base.cd, 100 - pct(Math.min(a.haste, 300), 22) - pct(Math.min(a.haste, 100), 13))), cdLeft: 0,
             guard: a.guard, vamp: troop ? a.vamp : 0, frozen: 0,
             target: -1, alive: true, died: -1, revived: false,
         };
@@ -328,7 +385,7 @@
         const a = this.armies[u.side];
         if (a.heal && !u.fixed && !u.revived) {
             u.revived = true;
-            u.hp = Math.max(1, pct(u.maxHp, Math.min(100, 35 + 25 * a.heal)));
+            u.hp = Math.max(1, pct(u.maxHp, Math.min(100, 35 + pct(a.heal, 25))));
             this.events.push({t: 'revive', id: u.id});
             return;
         }
@@ -341,7 +398,7 @@
     Battle.prototype.blast = function () {
         for (let i = 0; i < this.blasts.length; i++) {
             const u = this.blasts[i], a = this.armies[u.side];
-            const reach = 40 + u.r, dmg = pct(u.maxHp, Math.min(60, 14 + 10 * a.bomb)) + pct(20, this.scale);
+            const reach = 40 + u.r, dmg = pct(u.maxHp, Math.min(60, 14 + pct(a.bomb, 10))) + pct(pct(20, this.scale), Math.min(a.bomb, 300));
             this.events.push({t: 'blast', side: u.side, x: u.x, y: u.y, r: reach});
             for (const e of this.units) if (e.alive && e.side !== u.side && !e.wall && d2(e, u) <= reach * reach) this.hurt(e, dmg, null);
         }
@@ -382,18 +439,18 @@
                     const cy = Math.floor(foes.reduce((s, e) => s + e.y, 0) / foes.length);
                     const rad = 110 + 25 * a.fireball;
                     this.events.push({t: 'fireball', side, x: cx, y: cy, r: rad});
-                    for (const e of foes) if (d2(e, {x: cx, y: cy}) <= rad * rad) this.hurt(e, pct(115 * a.fireball, this.scale) + pct(e.maxHp, 10 * a.fireball), null);
+                    for (const e of foes) if (d2(e, {x: cx, y: cy}) <= rad * rad) this.hurt(e, pct(pct(115 * a.fireball, this.scale) + pct(e.maxHp, 10 * a.fireball), pw('fireball')), null);
                 }
             }
             if (a.lightning && t === 36) {
                 const tough = this.foes(side, true).sort((p, q) => q.hp - p.hp || p.id - q.id).slice(0, 6 * a.lightning);
                 for (const e of tough) {
                     this.events.push({t: 'bolt', side, x: e.x, y: e.y});
-                    this.hurt(e, pct(240, this.scale) + pct(e.maxHp, 22), null);
+                    this.hurt(e, pct(pct(240, this.scale) + pct(e.maxHp, 22), pw('lightning')), null);
                 }
             }
             if (a.frost && t === 28) {
-                const until = t + 60 + 30 * a.frost;
+                const until = t + pct(60 + 30 * a.frost, pw('frost'));
                 for (const e of this.foes(side, true)) e.frozen = Math.max(e.frozen, until);
                 this.events.push({t: 'frost', side, until});
             }
@@ -404,7 +461,7 @@
                     const e = foes[Math.floor(this.r() * foes.length)];
                     const rad = 72;
                     this.events.push({t: 'meteor', side, x: e.x, y: e.y, r: rad});
-                    for (const f of foes) if (d2(f, e) <= rad * rad) this.hurt(f, pct(90, this.scale) + pct(f.maxHp, 10), null);
+                    for (const f of foes) if (d2(f, e) <= rad * rad) this.hurt(f, pct(pct(90, this.scale) + pct(f.maxHp, 10), pw('meteor')), null);
                 }
             }
         });
@@ -591,7 +648,7 @@
     }
 
     const api = {W, H, TICK_MS, MAX_TICKS, HEARTS, MAX_ROUNDS, OFFER, MAX_FIELD, UNITS, TYPES, TROOPS, CIRCLE, STRONG, WEAK,
-        CARDS, TROOP_CARD, hashSeed, rng, picksIn, offer, lostLast, cardsOf, score, growth, army, advantage, preyOf, foesOf,
+        CARDS, TROOP_CARD, POWER, pw, factor, brings, hashSeed, rng, picksIn, offer, lostLast, cardsOf, score, growth, army, advantage, preyOf, foesOf,
         Battle, fight, battleSeed, botChoice};
     root.DraftEngine = api;
     if (typeof module !== 'undefined') module.exports = api;

@@ -62,10 +62,12 @@ const wins = (n, lab, smart, seeds = [1, 2, 3, 4]) => seeds.filter((s) => play(n
 
 const early = [1, 2, 3].map((n) => wins(n, {}, true));
 check(early.every((w) => w === 4), `chapters 1–3 are won without the lab (${early.join(', ')} of 4)`);
-const late = wins(12, {}, true);
-check(late <= 2, `chapter 12 without the lab is mostly lost (${late} of 4 won)`);
-const helped = wins(12, labAt(12), true);
-check(helped >= 2, `chapter 12 with the lab a player can afford by then is mostly won (${helped} of 4)`);
+const EIGHT = [1, 2, 3, 4, 5, 6, 7, 8];
+const late = wins(12, {}, true, EIGHT);
+check(late <= 2, `chapter 12 without the lab is lost (${late} of 8 won)`);
+// Hard on purpose: with the lab a player can afford by then it is a coin flip, not a stroll.
+const helped = wins(12, labAt(12), true, EIGHT);
+check(helped >= 3 && helped <= 6, `chapter 12 with the lab a player can afford by then is won about half the time (${helped} of 8)`);
 const seeds = [1, 2, 3, 4, 5, 6];
 const careful = [6, 8, 10, 12].reduce((s, n) => s + wins(n, labAt(n), true, seeds), 0);
 const careless = [6, 8, 10, 12].reduce((s, n) => s + wins(n, labAt(n), false, seeds), 0);

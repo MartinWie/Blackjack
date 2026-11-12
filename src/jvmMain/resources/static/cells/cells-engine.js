@@ -100,7 +100,7 @@
         const cell = centre ? {x: W / 2, y: H * 0.47, kind: 'centre'} : {x: W / 2, y: H - 175, kind: 'bottom'};
         const path = channel(r, cell);
         // Chapters ramp gently; within one the viruses toughen a lot, as your weapons do.
-        const tier = 1.8 * (1 + 0.8 * (n - 1) + 0.08 * (n - 1) * (n - 1));
+        const tier = 1.8 * (1 + 0.95 * (n - 1) + 0.09 * (n - 1) * (n - 1));
         const waves = [];
         const count = 14 + Math.min(10, Math.floor(n / 2));
         let t = 2;
@@ -109,7 +109,7 @@
             const mid = k === Math.floor(count / 2);
             waves.push({
                 at: t, size: mid ? 5 : Math.round(6 + p * 10 + r() * 4), big: mid ? 9 : 1,
-                hp: 9 * tier * (1 + 60 * p * p), speed: (mid ? 26 : 36 + p * 16) * (1 + Math.min(0.3, n * 0.012)),
+                hp: 9 * tier * (1 + 75 * p * p), speed: (mid ? 26 : 38 + p * 18) * (1 + Math.min(0.3, n * 0.012)),
                 look: mid ? 3 : Math.floor(r() * 3),
             });
             t += mid ? 9 : 6.5 - p * 2 + r() * 2;

@@ -50,6 +50,12 @@ needs to know.
   different battles. The server never sees a card; `DraftRoom.picksIn`, `OFFER` and
   `MAX_ROUNDS` mirror the engine, and `check:draft` holds them equal. A rules change
   moves `GOLDEN` in `tools/draft-check.mjs`; the troop ring check must keep passing.
+- **No Draft card may be the obvious pick.** `tools/draft-cards.mjs` (part of
+  `check:draft`) fights every card against every other card of its rarity on shared
+  base armies; none may clearly beat more than two thirds of them. Card strength lives in
+  the engine's `POWER` table; after a rules change run `node tools/draft-cards.mjs --tune`
+  and keep what it writes. The Dockerfile runs these checks and `check:cells`, so a
+  failing check stops the deploy.
 - **Cell Survivor's chapters are seeds** (`chapter(n)`), and its difficulty curve is
   set by `check:cells`'s bot: a change to weapons or wave health moves every chapter.
 - **Both canvas games are built for crowds.** No allocations in a frame's hot loops,
@@ -98,7 +104,7 @@ npm run check:solo   # the offline path: real bundle + real bank.js, 25 rounds i
 npm run check:meow   # Hide & Meow boards: unique, solvable without guessing, seeded
 npm run check:sweets # Sweet Swap levels: bot-calibrated budgets, won from the player seed
 npm run check:picnic # Ant Picnic levels: each winnable by the order it was built from
-npm run check:draft  # Draft Battle: deterministic battles, fair seats and cards, the bot
+npm run check:draft  # Draft Battle: deterministic battles, the ring, card against card, the bot
 npm run check:cells  # Cell Survivor: seeded chapters and the difficulty curve
 bash start.sh        # Tailwind, engine bundle, jar, run
 ```

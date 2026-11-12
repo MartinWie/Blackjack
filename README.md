@@ -240,10 +240,15 @@ like the blackjack tables.
 Solo plays against a bot that tries each card on offer in quick battles against what its
 rival has shown, which makes it counter-pick; it thinks in a worker (`draft-bot.js`) so
 the page never stalls. Lower ranks (Bronze to Master, by trophies) slip into random picks
-more often, and from Diamond on the bot drafts from rarer cards. A solo match in progress
+now and then, and from Gold on the bot drafts from rarer cards. A solo match in progress
 is saved and resumes. `npm run check:draft` keeps the battle deterministic, the server's
-pick counts equal to the engine's, the ring intact, both seats and every card in balance,
-and the bot ahead of random drafting.
+pick counts equal to the engine's, the ring intact, both seats even and the bot ahead of
+random drafting. It also fights every card against every other card of its rarity
+(`tools/draft-cards.mjs`): two armies share a base drawn from real offers, each adds one
+card, and they fight from both seats. A card may beat some others clearly, but none more
+than two thirds of its rarity. Card strength is one table (`POWER` in the engine) that
+`node tools/draft-cards.mjs --tune` sets; the release image does not build when a check
+fails.
 
 The battlefield draws generated sprites (`static/draft/img`), batched shadows and team
 rings, and baked glows; a phone that keeps missing frames lowers its canvas resolution.
@@ -269,8 +274,8 @@ where the cell stands, centre or bottom by chapter), its waves and its boss. Vir
 toughen steeply within a chapter, as a run's weapons stack up, and gently from one
 chapter to the next, so later chapters need the lab. A run steps at a fixed tick, so
 `npm run check:cells` plays the same game as the page: a bot that picks sensibly wins
-the first chapters without the lab, mostly loses chapter 12 without it, mostly wins it
-with what a player could have bought by then, and beats careless picks. It also runs a
+the first chapters without the lab, loses chapter 12 without it, wins it about half the
+time with what a player could have bought by then, and beats careless picks. It also runs a
 fully evolved build deep in the game to keep a dish of several hundred shots cheap: shots
 look up viruses in a grid of buckets, stats are worked out once per pick, and only crits
 raise a hit event. The page scales each sprite once to the pixels it is drawn at, keeps

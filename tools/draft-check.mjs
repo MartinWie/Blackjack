@@ -53,7 +53,7 @@ check(same, 'a battle fought twice ends the same way');
 
 // A change to the rules changes these battles. That is allowed, but on purpose: set
 // GOLDEN to the new digest. Phones on the old build are reloaded by the build check.
-const GOLDEN = '90df7e43';
+const GOLDEN = 'f694a0a6';
 let digest = 0x811c9dc5;
 for (let s = 1; s <= 24; s++) {
     const r = E.rng(s * 13);
@@ -98,7 +98,8 @@ for (const round of [0, 4]) {
 }
 
 // 4. Balance over random matches.
-const N = 160;
+// Enough matches that luck of the offers (a seat drawing an epic offer) evens out.
+const N = 320;
 const wins = [0, 0, 0], card = {}, ticks = [], rounds = [];
 let worst = 0, timeouts = 0, fights = 0;
 for (let s = 1; s <= N; s++) {
@@ -129,15 +130,10 @@ check(worst < 150, `the slowest battle simulates in ${worst.toFixed(0)} ms`);
 rounds.sort((a, b) => a - b);
 check(rounds[rounds.length >> 1] >= 4, `a match runs ${rounds[rounds.length >> 1]} rounds (median), ${rounds[rounds.length - 1]} at most`);
 const rates = Object.entries(card).filter(([, v]) => v.n >= 20).map(([id, v]) => [id, Math.round((100 * v.w) / v.n)]).sort((a, b) => b[1] - a[1]);
-// An offer is three cards of one rarity, so what matters is that cards of a rarity are
-// worth about the same: none far above or below its tier's average.
-const lop = [];
-for (const tier of [0, 1, 2]) {
-    const inTier = rates.filter(([id]) => E.CARDS[id].rarity === tier);
-    const mean = inTier.reduce((sum, [, r]) => sum + r, 0) / inTier.length;
-    for (const [id, r] of inTier) if (Math.abs(r - mean) > 10) lop.push(`${id} ${r} (tier ${mean.toFixed(0)})`);
-}
-check(!lop.length, `every card wins within 10 points of the other cards of its rarity${lop.length ? `: ${lop.join(', ')}` : ''}`);
+// Card against card is `tools/draft-cards.mjs` (part of this check). Here, in whole random
+// matches, every card only has to stay in a sane band.
+const lop = rates.filter(([, r]) => r < 35 || r > 75);
+check(!lop.length, `every card wins 35–75% of the battles of armies holding it${lop.length ? `: ${lop.map((r) => r.join(' ')).join(', ')}` : ''}`);
 console.log(`     ${rates.map(([id, r]) => `${id} ${r}`).join(' · ')}`);
 
 // 5. The bot drafts better than chance, and the comeback offers keep matches alive.

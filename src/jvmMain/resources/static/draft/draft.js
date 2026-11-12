@@ -18,8 +18,8 @@
     const STORE_KEY = 'draft.v1';
     const RANKS = [['Bronze', 0], ['Silver', 300], ['Gold', 700], ['Diamond', 1200], ['Master', 1800]];
     // How often a bot of each rank picks without thinking; from Diamond on it also gets rarer cards.
-    const SLIP = [0.45, 0.28, 0.14, 0.05, 0];
-    const RICH_FROM = 3;
+    const SLIP = [0.25, 0.12, 0.05, 0, 0];
+    const RICH_FROM = 2;
     const BOTS = ['Sir Goose', 'Captain Crumb', 'Baroness Bun', 'Old Gruff', 'Lady Pickle', 'Duke Waffle', 'General Puff', 'Mad Marge', 'Count Dumpling', 'Sergeant Sprout'];
     const NAMES = ['Brave Otter', 'Swift Fox', 'Bold Badger', 'Clever Crow', 'Merry Moose', 'Lucky Lynx', 'Stout Stoat', 'Daring Duck'];
     const KIND = {troop: 'Troops', mul: 'Multiplier', buff: 'Boost', def: 'Building', spell: 'Spell'};
@@ -82,19 +82,21 @@
     }
 
     const names = (types) => types.map((t) => PLURAL[t]).join(' and ');
+    /** A multiplier as a player reads it: ×1.6, ×2, ×3.4. */
+    const times = (id) => `×${(E.factor(id) / 100).toFixed(1).replace(/\.0$/, '')}`;
 
     function cardText(id) {
         const c = E.CARDS[id];
         if (c.text) return c.text;
-        if (c.kind === 'mul') return `×${c.f / 100} your ${PLURAL[c.unit]}`;
+        if (c.kind === 'mul') return `${times(id)} your ${PLURAL[c.unit]}`;
         const prey = E.preyOf(c.unit), foes = E.foesOf(c.unit).filter((t) => t !== 'wall');
         return `Beats ${names(prey)}. Fears ${names(foes)}.`;
     }
 
     function cardValue(id, round) {
         const c = E.CARDS[id];
-        if (c.kind === 'troop') return `+${Math.max(1, Math.floor((c.n * E.growth(round)) / 100))}`;
-        if (c.kind === 'mul') return `×${c.f / 100}`;
+        if (c.kind === 'troop') return `+${E.brings(id, round)}`;
+        if (c.kind === 'mul') return times(id);
         return '';
     }
 
@@ -857,32 +859,25 @@
      * zoomed in at most so far, never further out than the whole field.
      */
     function follow(cam, b, flip, aspect) {
+        // Every unit still standing is in the picture, buildings and walls too: the box
+        // holds a unit's whole sprite (it stands above its feet; a dragon hovers higher).
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-        // Troops make the fight; towers and catapults far behind them would keep it zoomed
-        // out. A side with no troops left is its buildings, so those come into view, and so
-        // does any building somebody is attacking.
-        let has0 = false, has1 = false;
-        for (const u of b.units) if (u.alive && !u.fixed) { if (u.side) has1 = true; else has0 = true; }
-        for (const u of b.units) if (u.alive && u.target >= 0 && b.units[u.target].fixed) b.units[u.target].aimed = b.tick;
         for (const u of b.units) {
-            if (!u.alive || u.wall) continue;
-            if (u.fixed && (u.side ? has1 : has0) && !(u.aimed >= b.tick - 30)) continue;
-            const x = flip ? E.W - u.x : u.x, y = flip ? E.H - u.y : u.y;
-            if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+            if (!u.alive) continue;
+            const x = flip ? E.W - u.x : u.x, y = flip ? E.H - u.y : u.y, reach = u.r * 2.2;
+            const top = y - u.r * 4.6 - (u.fly ? 40 : 0);
+            if (x - reach < x0) x0 = x - reach;
+            if (x + reach > x1) x1 = x + reach;
+            if (top < y0) y0 = top;
+            if (y + u.r > y1) y1 = y + u.r;
         }
         if (x0 === Infinity) return;
-        const pad = 120;
+        const pad = 36;
         let w = Math.max(x1 - x0 + 2 * pad, E.W / 2.2), h = Math.max(y1 - y0 + 2 * pad, E.H / 2.2);
         if (w / h < aspect) w = h * aspect; else h = w / aspect;
-        // A tall screen crops the flanks a little rather than show the whole field small.
-        const fitW = Math.max(E.W * 0.8, E.H * aspect);
-        if (w > fitW) { w = fitW; h = w / aspect; }
-        const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-        // It may look a little past the field's edge, so a unit standing there is not cut off.
-        const over = 70;
-        const tx = w >= E.W + 2 * over ? (E.W - w) / 2 : Math.max(-over, Math.min(E.W - w + over, cx - w / 2));
-        const ty = h >= E.H + 2 * over ? (E.H - h) / 2 : Math.max(-over, Math.min(E.H - h + over, cy - h / 2));
-        const ease = cam.ready ? 0.06 : 1;
+        const tx = (x0 + x1) / 2 - w / 2, ty = (y0 + y1) / 2 - h / 2;
+        // Zooming out is quick, so nothing leaves the picture; closing in is slow and calm.
+        const ease = !cam.ready ? 1 : w > cam.w ? 0.25 : 0.05;
         cam.x += (tx - cam.x) * ease; cam.y += (ty - cam.y) * ease;
         cam.w += (w - cam.w) * ease; cam.h = cam.w / aspect;
         cam.ready = true;
@@ -981,6 +976,11 @@
         const {b, teams, flip} = scene;
         const k = geo.w / cam.w;
         const sx = scene.shake > 0.3 ? rand(-scene.shake, scene.shake) : 0, sy = scene.shake > 0.3 ? rand(-scene.shake, scene.shake) : 0;
+        ctx.setTransform(k, 0, 0, k, (-cam.x + sx) * k, (-cam.y + sy) * k);
+        // The camera may look past the painted field on a wide screen: the same green goes on.
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.fillStyle = '#6E9A57';
+        ctx.fillRect(0, 0, geo.w, geo.h);
         ctx.setTransform(k, 0, 0, k, (-cam.x + sx) * k, (-cam.y + sy) * k);
         ctx.drawImage(groundLayer(), -MARGIN, -MARGIN, E.W + 2 * MARGIN, E.H + 2 * MARGIN);
         const t = b.tick + alpha;

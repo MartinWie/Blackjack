@@ -10,6 +10,18 @@ COPY src ./src
 RUN npx tailwindcss --minify -i ./src/jvmMain/resources/static/input.css \
                     -o ./src/jvmMain/resources/static/output.css
 
+# Stage 1b — the game checks. Draft Battle's battles, troop ring and card balance (no card
+# the obvious pick of its rarity) and Cell Survivor's difficulty curve must pass, or the
+# image does not build and nothing ships. The jar stage below copies the marker, so this
+# stage always runs.
+FROM node:20-alpine AS checks
+WORKDIR /app
+COPY tools ./tools
+COPY src/jvmMain/resources/static/draft ./src/jvmMain/resources/static/draft
+COPY src/jvmMain/resources/static/cells ./src/jvmMain/resources/static/cells
+COPY src/jvmMain/kotlin/de/mw/draft/DraftRoom.kt ./src/jvmMain/kotlin/de/mw/draft/DraftRoom.kt
+RUN node tools/draft-check.mjs && node tools/draft-cards.mjs && node tools/cells-check.mjs && touch /app/checked
+
 # Stage 2 — the jar, and the engine bundle that goes in it.
 #
 # glibc, not alpine: this stage compiles the shared rules to JavaScript too, and the
@@ -21,6 +33,7 @@ COPY gradle ./gradle
 COPY gradlew gradle.properties settings.gradle.kts build.gradle.kts ./
 COPY src ./src
 COPY --from=css /app/src/jvmMain/resources/static/output.css ./src/jvmMain/resources/static/output.css
+COPY --from=checks /app/checked /tmp/checked
 # shadowJar rather than `build`: it pulls in the JS bundle through
 # jvmProcessResources and skips the test tasks entirely.
 RUN chmod +x ./gradlew && ./gradlew shadowJar --no-daemon
