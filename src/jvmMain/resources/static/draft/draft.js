@@ -858,10 +858,15 @@
      */
     function follow(cam, b, flip, aspect) {
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-        // Troops make the fight; towers and catapults far behind would keep it zoomed out.
-        const troops = b.units.some((u) => u.alive && !u.fixed);
+        // Troops make the fight; towers and catapults far behind them would keep it zoomed
+        // out. A side with no troops left is its buildings, so those come into view, and so
+        // does any building somebody is attacking.
+        let has0 = false, has1 = false;
+        for (const u of b.units) if (u.alive && !u.fixed) { if (u.side) has1 = true; else has0 = true; }
+        for (const u of b.units) if (u.alive && u.target >= 0 && b.units[u.target].fixed) b.units[u.target].aimed = b.tick;
         for (const u of b.units) {
-            if (!u.alive || (troops && u.fixed)) continue;
+            if (!u.alive || u.wall) continue;
+            if (u.fixed && (u.side ? has1 : has0) && !(u.aimed >= b.tick - 30)) continue;
             const x = flip ? E.W - u.x : u.x, y = flip ? E.H - u.y : u.y;
             if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
         }
@@ -873,8 +878,10 @@
         const fitW = Math.max(E.W * 0.8, E.H * aspect);
         if (w > fitW) { w = fitW; h = w / aspect; }
         const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-        const tx = w >= E.W ? (E.W - w) / 2 : Math.max(0, Math.min(E.W - w, cx - w / 2));
-        const ty = h >= E.H ? (E.H - h) / 2 : Math.max(0, Math.min(E.H - h, cy - h / 2));
+        // It may look a little past the field's edge, so a unit standing there is not cut off.
+        const over = 70;
+        const tx = w >= E.W + 2 * over ? (E.W - w) / 2 : Math.max(-over, Math.min(E.W - w + over, cx - w / 2));
+        const ty = h >= E.H + 2 * over ? (E.H - h) / 2 : Math.max(-over, Math.min(E.H - h + over, cy - h / 2));
         const ease = cam.ready ? 0.06 : 1;
         cam.x += (tx - cam.x) * ease; cam.y += (ty - cam.y) * ease;
         cam.w += (w - cam.w) * ease; cam.h = cam.w / aspect;
