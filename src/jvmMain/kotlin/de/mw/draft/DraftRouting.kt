@@ -13,9 +13,9 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 
-/** Both empty for a standard match; either set opens a room on custom rules. */
+/** All empty for a standard match; any set opens a room on custom rules. */
 @Serializable
-private data class CreateRequest(val hearts: Int? = null, val picks: Int? = null)
+private data class CreateRequest(val hearts: Int? = null, val picks: Int? = null, val balance: Boolean? = null)
 
 @Serializable
 private data class PickRequest(val round: Int, val pick: Int, val choice: Int)
@@ -38,10 +38,10 @@ fun Route.draftApi() {
             val body = try {
                 call.receive<CreateRequest>()
             } catch (e: BadRequestException) {
-                return@post call.respond(HttpStatusCode.BadRequest, ApiError("a room needs whole numbers for its rules"))
+                return@post call.respond(HttpStatusCode.BadRequest, ApiError("those are not rules a room can open with"))
             }
-            val rules = if (body.hearts == null && body.picks == null) DraftRules.STANDARD
-            else DraftRules.custom(body.hearts ?: DraftRules.HEARTS, body.picks ?: DraftRules.PICKS)
+            val rules = if (body.hearts == null && body.picks == null) DraftRules.STANDARD.copy(balance = body.balance ?: true)
+            else DraftRules.custom(body.hearts ?: DraftRules.HEARTS, body.picks ?: DraftRules.PICKS, body.balance ?: true)
             val room = DraftRooms.create(System.currentTimeMillis(), rules)
                 ?: return@post call.respond(HttpStatusCode.ServiceUnavailable, ApiError("no free rooms right now"))
             call.respond(CreatedRoom(room.code))

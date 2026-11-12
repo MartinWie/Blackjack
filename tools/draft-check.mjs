@@ -31,7 +31,7 @@ function playMatch(seed, policies, onFight, rules) {
         for (const seat of [0, 1]) {
             for (let k = 0; k < E.picksIn(round, rules); k++) picks[round][seat].push(policies[seat](seat, round, k, picks, results));
         }
-        const cards = [0, 1].map((seat) => E.cardsOf(seed, 0, picks, seat, results));
+        const cards = [0, 1].map((seat) => E.cardsOf(seed, 0, picks, seat, results, false, rules));
         const t = performance.now();
         const res = E.fight(cards[0], cards[1], round, E.battleSeed(seed, 0, round));
         if (onFight) onFight(res, cards, round, performance.now() - t);
@@ -41,7 +41,7 @@ function playMatch(seed, policies, onFight, rules) {
     return {picks, results, ...E.score(results, rules)};
 }
 const randomPolicy = (r) => () => Math.floor(r() * E.OFFER);
-const botPolicy = (seed) => (seat, round, k, picks, results) => E.botChoice(seed, 0, picks, round, seat, results);
+const botPolicy = (seed, rules) => (seat, round, k, picks, results) => E.botChoice(seed, 0, picks, round, seat, results, false, rules);
 
 let same = true;
 for (let s = 1; s <= 20; s++) {
@@ -56,7 +56,7 @@ check(same, 'a battle fought twice ends the same way');
 
 // A change to the rules changes these battles. That is allowed, but on purpose: set
 // GOLDEN to the new digest. Phones on the old build are reloaded by the build check.
-const GOLDEN = 'f694a0a6';
+const GOLDEN = '1d8220b1';
 let digest = 0x811c9dc5;
 for (let s = 1; s <= 24; s++) {
     const r = E.rng(s * 13);
@@ -82,6 +82,12 @@ check(/fun picksIn\(round: Int\) = if \(round == 0\) firstPicks else picks/.test
 const fit = E.customRules(0, 99), big = E.customRules(1e9, 4);
 check(fit.hearts === 1 && fit.picks === E.MAX_PICKS && fit.firstPicks === fit.picks && big.hearts === E.MAX_HEARTS && E.picksIn(0, big) === 4,
     'custom rules are kept in bounds, one pick count for every round');
+check(/val balance: Boolean = true/.test(room) && E.STANDARD.balance === true, 'catch-up offers are on unless a custom match turns them off, on both');
+{
+    const off = E.customRules(3, 2, false), lead = [0, 0];
+    check(E.standing(lead, 2, 0) === 3 && E.standing(lead, 2, 1) === -3 && E.standing(lead, 2, 0, off) === 0 && E.standing(lead, 2, 1, off) === 0,
+        'offers lean against the leader, and not at all with catch-up cards off');
+}
 
 // 3. The ring: an army of one troop beats the next one round and loses to the one
 // before, at the start of a match and deep into it; every troop has two it cannot beat.

@@ -48,7 +48,7 @@ needs to know.
 - **Draft Battle's battle must stay deterministic across browsers**: integers only in
   `draft-engine.js` (no `Math.random`, sin, cos, pow, hypot), or two phones in a room see
   different battles. The server never sees a card; `DraftRoom.OFFER` and `DraftRules`
-  (hearts, picks per round, rounds, the custom mode's limits) mirror the engine, and
+  (hearts, picks per round, rounds, catch-up offers, the custom mode's limits) mirror the engine, and
   `check:draft` holds them equal. A match's rules travel in its state (`rules`), so code
   that counts picks or hearts takes them from there, never from the standard constants. A rules change
   moves `GOLDEN` in `tools/draft-check.mjs`; the troop ring check must keep passing.

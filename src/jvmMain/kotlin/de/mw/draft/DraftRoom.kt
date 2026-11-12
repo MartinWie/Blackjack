@@ -238,7 +238,13 @@ class DraftRoom(
  * rules and limits, and check:draft holds the two equal.
  */
 @Serializable
-data class DraftRules(val hearts: Int, val firstPicks: Int, val picks: Int) {
+data class DraftRules(
+    val hearts: Int,
+    val firstPicks: Int,
+    val picks: Int,
+    /** Offers lean against the leader; draft-engine.js `standing` reads it. */
+    val balance: Boolean = true,
+) {
     val maxRounds get() = minOf(ROUND_LIMIT, hearts * ROUNDS_PER_HEART)
 
     fun picksIn(round: Int) = if (round == 0) firstPicks else picks
@@ -255,9 +261,9 @@ data class DraftRules(val hearts: Int, val firstPicks: Int, val picks: Int) {
         val STANDARD = DraftRules(HEARTS, FIRST_PICKS, PICKS)
 
         /** Custom rules: one pick count for every round, both numbers kept in bounds. */
-        fun custom(hearts: Int, picks: Int): DraftRules {
+        fun custom(hearts: Int, picks: Int, balance: Boolean = true): DraftRules {
             val p = picks.coerceIn(1, MAX_PICKS)
-            return DraftRules(hearts.coerceIn(1, MAX_HEARTS), p, p)
+            return DraftRules(hearts.coerceIn(1, MAX_HEARTS), p, p, balance)
         }
     }
 }

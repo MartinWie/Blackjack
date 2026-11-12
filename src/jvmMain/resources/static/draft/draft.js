@@ -41,7 +41,7 @@
         stage: $('stage'), draft: $('draft'), roundName: $('round-name'), pickLine: $('pick-line'), comeback: $('comeback'),
         offer: $('offer'), prompt: $('prompt'), field: $('field'), banner: $('banner'), panel: $('panel'),
         homeBtn: $('home-btn'), fastBtn: $('fast-btn'), helpBtn: $('help-btn'),
-        custom: $('custom'), customHearts: $('custom-hearts'), customPicks: $('custom-picks'), customPlay: $('custom-play'), customRoom: $('custom-room'),
+        custom: $('custom'), customHearts: $('custom-hearts'), customPicks: $('custom-picks'), customPlay: $('custom-play'), customRoom: $('custom-room'), customBalance: $('custom-balance'),
         fly: $('fly'), sheet: $('sheet'), sheetBody: $('sheet-body'), sheetClose: $('sheet-close'),
     };
 
@@ -49,7 +49,7 @@
 
     function load() {
         const fresh = {trophies: 0, wins: 0, losses: 0, name: NAMES[Math.floor(Math.random() * NAMES.length)], fast: false, solo: null,
-            secret: false, custom: {hearts: E.HEARTS, picks: E.STANDARD.picks}, customSolo: null};
+            secret: false, custom: {hearts: E.HEARTS, picks: E.STANDARD.picks, balance: true}, customSolo: null};
         try {
             const saved = JSON.parse(localStorage.getItem(STORE_KEY));
             if (saved && typeof saved === 'object') {
@@ -203,7 +203,7 @@
                 const started = performance.now();
                 const careless = Math.random() < SLIP[rankOf(store.trophies)];
                 const choice = careless ? Math.floor(Math.random() * E.OFFER)
-                    : await think([s.seed, s.match, s.picks, round, 1, resultsOf(s, round), !!s.boost[1]]);
+                    : await think([s.seed, s.match, s.picks, round, 1, resultsOf(s, round), !!s.boost[1], s.rules]);
                 await sleep(Math.max(0, 900 + Math.random() * 1100 - (performance.now() - started)));
                 if (!thinking) return;
                 thinking = false;
@@ -284,10 +284,12 @@
     }
 
     /** What each seat holds for the battle of `round` (the rival's hidden picks left out). */
-    const handsAt = (s, round, results) => [0, 1].map((seat) => E.cardsOf(s.seed, s.match, s.picks.slice(0, round + 1), seat, results, boostOf(s, seat)));
+    const handsAt = (s, round, results) => [0, 1].map((seat) => E.cardsOf(s.seed, s.match, s.picks.slice(0, round + 1), seat, results, boostOf(s, seat), s.rules));
+    /** Where you stand before `round`, -3 (far behind, rarest offers) to 3 (far ahead, plainest). */
+    const standingOf = (s, round) => E.standing(resultsOf(s, round), round, me(s), s.rules, boostOf(s, me(s)));
 
     const won = new Map();
-    /** Winners of the first `upTo` rounds; each needs the ones before it (a lost round enriches offers). */
+    /** Winners of the first `upTo` rounds; each needs the ones before it (they set the offers). */
     function resultsOf(s, upTo) {
         const key = `${s.seed}:${s.match}`;
         let list = won.get(key) || (s.results && s.results.build === BUILD ? s.results.list : []);
@@ -308,11 +310,12 @@
     }
 
     const heartsOf = (s) => (s.rules || E.STANDARD).hearts;
-    const sameRules = (a, b) => !!a && !!b && a.hearts === b.hearts && a.firstPicks === b.firstPicks && a.picks === b.picks;
+    const balanced = (r) => !r || r.balance !== false;
+    const sameRules = (a, b) => !!a && !!b && a.hearts === b.hearts && a.firstPicks === b.firstPicks && a.picks === b.picks && balanced(a) === balanced(b);
     const isCustom = (rules) => !!rules && !sameRules(rules, E.STANDARD);
     const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
     /** Custom rules as a line: "7 hearts, 4 cards a round". */
-    const rulesLine = (r) => `${plural(r.hearts, 'heart')}, ${plural(r.picks, 'card')} a round`;
+    const rulesLine = (r) => `${plural(r.hearts, 'heart')}, ${plural(r.picks, 'card')} a round${balanced(r) ? '' : ', no catch-up cards'}`;
 
     // --- screens ------------------------------------------------------------------------
 
@@ -367,16 +370,17 @@
         const rules = customChoice(), s = store.customSolo;
         if (document.activeElement !== els.customHearts) els.customHearts.value = rules.hearts;
         if (document.activeElement !== els.customPicks) els.customPicks.value = rules.picks;
+        els.customBalance.checked = rules.balance;
         const resume = s && !s.recorded && sameRules(s.rules, rules);
         els.customPlay.textContent = resume ? `Resume against ${s.seats[1].name}` : 'Play the bot';
     }
 
-    const customChoice = () => E.customRules(store.custom.hearts, store.custom.picks);
+    const customChoice = () => E.customRules(store.custom.hearts, store.custom.picks, store.custom.balance !== false);
 
     function setCustom(field, value) {
         store.custom = {...store.custom, [field]: value};
         const fit = customChoice();
-        store.custom = {hearts: fit.hearts, picks: fit.picks};
+        store.custom = {hearts: fit.hearts, picks: fit.picks, balance: fit.balance};
         save();
     }
 
@@ -391,7 +395,7 @@
         if (s && !s.recorded && rules && !sameRules(s.rules, rules)
             && !confirm(`Start a new custom match? The one against ${s.seats[1].name} (${rulesLine(s.rules)}) ends.`)) {
             // Back to that match's numbers, so the button resumes it.
-            store.custom = {hearts: s.rules.hearts, picks: s.rules.picks};
+            store.custom = {hearts: s.rules.hearts, picks: s.rules.picks, balance: balanced(s.rules)};
             save();
             renderCustom();
             return;
@@ -443,7 +447,7 @@
         note('Opening a room…');
         let code = null;
         try {
-            code = (await api('/rooms', rules ? {hearts: rules.hearts, picks: rules.picks} : {})).code;
+            code = (await api('/rooms', rules ? {hearts: rules.hearts, picks: rules.picks, balance: rules.balance} : {})).code;
         } catch (e) { note(e.message, true); }
         joining = false;
         if (code) await joinRoom(code);
@@ -599,6 +603,9 @@
         el.innerHTML = html;
     }
 
+    const COMEBACK = {'-3': 'The rarest cards for you this round.', '-2': 'Much rarer cards for you this round.', '-1': 'Rarer cards for you this round.',
+        1: 'Plainer cards for you this round.', 2: 'Much plainer cards for you this round.', 3: 'The plainest cards for you this round.'};
+
     /** A new round: the offers of its first pick, and a banner. */
     async function dealRound(s, round, fresh) {
         battleToken++;
@@ -608,7 +615,10 @@
         els.match.classList.remove('battling');
         els.offer.innerHTML = '';
         els.roundName.textContent = `Round ${round + 1}`;
-        els.comeback.hidden = !E.lostLast(resultsOf(s, round), round, me(s));
+        const edge = standingOf(s, round);
+        els.comeback.hidden = !edge;
+        els.comeback.classList.toggle('ahead', edge > 0);
+        els.comeback.textContent = COMEBACK[edge] || '';
         renderSides(s);
         if ((!fresh || s.picks[round][me(s)].length === 0) && !calm()) {
             banner(`Round ${round + 1}`);
@@ -634,7 +644,7 @@
         // not re-arm cards already tapped.
         if (view.offer !== key) {
             view.offer = key;
-            const cards = E.offer(s.seed, s.match, round, me(s), k, E.lostLast(resultsOf(s, round), round, me(s)));
+            const cards = E.offer(s.seed, s.match, round, me(s), k, standingOf(s, round));
             els.offer.innerHTML = '';
             cards.forEach((id, c) => {
                 const card = cardEl(id, round);
@@ -771,7 +781,8 @@
         window.addEventListener('resize', onResize);
         banner('Battle!');
 
-        const scene = {b, teams, flip, fx: [], decals: [], hits: new Map(), swings: new Map(), trails: new WeakMap(), shake: 0, flash: 0, order: []};
+        const scene = {b, teams, flip, fx: [], decals: [], hits: new Map(), swings: new Map(), trails: new WeakMap(), shake: 0, flash: 0, order: [],
+            clouds: [], whirls: [], cry: [0, 0], quake: null};
         const cam = {x: 0, y: 0, w: E.W, h: E.H};
         // A beat to see both armies before they move, and one after the last blow.
         let acc = -800, last = performance.now(), endedAt = null;
@@ -797,6 +808,8 @@
                 }
                 if (b.done && endedAt === null) endedAt = now;
                 scene.shake *= Math.pow(0.86, dt / 16);
+                // An earthquake rumbles on for a second after its first jolt.
+                if (scene.quake && b.tick - scene.quake < 34) scene.shake = Math.max(scene.shake, 7 * (1 - (b.tick - scene.quake) / 34));
                 scene.flash *= Math.pow(0.8, dt / 16);
                 follow(cam, b, flip, geo.w / geo.h);
                 draw(ctx, geo, cam, scene, b.done ? 1 : Math.max(0, Math.min(1, acc / E.TICK_MS)), now);
@@ -893,9 +906,40 @@
                 scorch(ev.x, ev.y, ev.r * 0.7);
                 scene.shake = Math.min(14, scene.shake + 5);
                 break;
-            case 'frost':
-                scene.frost = {born: tick, life: Math.max(10, ev.until - tick)};
-                scene.flash = Math.max(scene.flash, 0.2);
+            case 'quake':
+                // Dust off every enemy building and wall, the ground cracked under them.
+                scene.quake = tick;
+                scene.shake = 14;
+                for (const u of b.units) {
+                    if (!u.alive || u.side === ev.side || !u.fixed) continue;
+                    ring(u.x, u.y, u.r * 2.6, 'rgba(150, 120, 85, X)', 16, 6);
+                    burst(scene, u.x, u.y, 6, {speed: 3.5, life: 20, size: 9, colours: ['rgba(190,165,125,.7)', 'rgba(140,115,85,.6)'], rise: 0.6});
+                    scorch(u.x, u.y + u.r * 0.4, u.r * 1.4);
+                }
+                break;
+            case 'cry': {
+                scene.cry[ev.side] = ev.until;
+                let n = 0;
+                for (const u of b.units) {
+                    if (!u.alive || u.side !== ev.side || u.fixed || n++ > 40) continue;
+                    fx.push({t: 'glow', x: u.x, y: u.y - u.r, r: u.r * 2.4, colour: '255, 120, 40', born: tick + (n % 6), life: 10});
+                }
+                scene.flash = Math.max(scene.flash, 0.12);
+                break;
+            }
+            case 'poison':
+                scene.clouds.push({x: ev.x, y: ev.y, r: ev.r, born: tick, until: ev.until});
+                burst(scene, ev.x, ev.y, 14, {speed: 4, life: 26, size: 14, colours: ['rgba(150,230,60,.55)', 'rgba(90,180,40,.5)'], rise: 0.3});
+                break;
+            case 'vortex':
+                scene.whirls.push({x: ev.x, y: ev.y, r: ev.r, born: tick, until: ev.until});
+                break;
+            case 'burst':
+                ring(ev.x, ev.y, ev.r * 2, 'rgba(190, 120, 255, X)', 18, 10);
+                fx.push({t: 'glow', x: ev.x, y: ev.y, r: ev.r * 1.6, colour: '170, 90, 255', born: tick, life: 16});
+                burst(scene, ev.x, ev.y, 22, {speed: 9, life: 20, size: 7, colours: ['#E6CCFF', '#B57BFF', '#7A3FE0'], glow: true});
+                scene.shake = Math.min(14, scene.shake + 8);
+                scene.flash = Math.max(scene.flash, 0.25);
                 break;
             case 'blast':
                 ring(ev.x, ev.y, ev.r, 'rgba(255, 120, 60, X)', 12, 6);
@@ -1058,6 +1102,7 @@
             ctx.drawImage(scorch, (flip ? E.W - d.x : d.x) - d.r, (flip ? E.H - d.y : d.y) - d.r * 0.7, d.r * 2, d.r * 1.4);
         }
         ctx.globalAlpha = 1;
+        drawWhirls(ctx, scene, t);
 
         // Where each unit stands this frame, kept on the unit: no arrays per frame.
         const order = scene.order;
@@ -1095,6 +1140,21 @@
             ctx.fill();
             ctx.globalAlpha = 0.95;
             ctx.stroke();
+            // A battle cry: a flickering orange ring round every troop of that side.
+            if (scene.cry[side] > b.tick) {
+                ctx.strokeStyle = '#FF8A2A';
+                ctx.lineWidth = 3.4;
+                ctx.globalAlpha = 0.55 + 0.35 * Math.sin(now / 70);
+                ctx.beginPath();
+                for (const u of order) {
+                    if (!u.alive || u.fixed || u.side !== side) continue;
+                    const cy = u.sy + u.r * 0.3;
+                    ctx.moveTo(u.sx + u.r * 1.45, cy);
+                    ctx.ellipse(u.sx, cy, u.r * 1.45, u.r * 0.62, 0, 0, Math.PI * 2);
+                }
+                ctx.stroke();
+                ctx.lineWidth = 2.4;
+            }
         }
         ctx.globalAlpha = 1;
 
@@ -1123,8 +1183,7 @@
                     const moving = u.x !== u.px || u.y !== u.py;
                     // Poses are held like drawn animation, a few ticks each; the body only
                     // adds a hop and a nudge on top.
-                    if (u.frozen > b.tick) pose = HIT;
-                    else if (act && since < 3) {
+                    if (act && since < 3) {
                         // The blow: a lunge for a blade, a kick back for a shot.
                         pose = STRIKE;
                         const w = 1 - since / 3, dir = act.kind === 'swing' ? 0.8 : -0.35;
@@ -1181,12 +1240,6 @@
                 else ctx.drawImage(s.white, -size / 2, -size, size, size);
                 ctx.globalAlpha = 1;
             }
-            if (u.frozen > b.tick) {
-                ctx.globalAlpha = 0.55;
-                ctx.fillStyle = '#BFE6FF';
-                ctx.fillRect(-size * 0.42, -size * 0.95, size * 0.84, size * 0.9);
-                ctx.globalAlpha = 1;
-            }
             ctx.setTransform(k, 0, 0, k, (-cam.x + sx) * k, (-cam.y + sy) * k);
             const army = b.armies[u.side];
             const veteran = !u.fixed && army.placed[u.type] < army.count[u.type];
@@ -1200,6 +1253,7 @@
             }
         }
 
+        drawClouds(ctx, scene, t);
         drawShots(ctx, scene, alpha);
         drawEffects(ctx, scene, t);
 
@@ -1213,13 +1267,6 @@
         }
         ctx.fillStyle = geo.vignette;
         ctx.fillRect(0, 0, geo.w, geo.h);
-        if (scene.frost) {
-            const age = (t - scene.frost.born) / scene.frost.life;
-            if (age < 1) {
-                ctx.fillStyle = `rgba(160, 215, 255, ${0.18 * (1 - age)})`;
-                ctx.fillRect(0, 0, geo.w, geo.h);
-            } else scene.frost = null;
-        }
         if (scene.flash > 0.02) {
             ctx.fillStyle = `rgba(255, 250, 230, ${scene.flash})`;
             ctx.fillRect(0, 0, geo.w, geo.h);
@@ -1269,6 +1316,52 @@
             ctx.globalCompositeOperation = 'source-over';
             ctx.drawImage(sprite, x - 16, y - 30, 32, 32);
         }
+    }
+
+    const CLOUD = () => radial('cloud', [[0, 'rgba(150, 225, 60, .5)'], [0.6, 'rgba(110, 190, 40, .3)'], [1, 'rgba(80, 160, 30, 0)']]);
+    const EYE = () => radial('eye', [[0, 'rgba(20, 0, 40, .7)'], [0.4, 'rgba(120, 60, 220, .45)'], [1, 'rgba(150, 90, 255, 0)']]);
+
+    /** Poison clouds: soft puffs drifting round the spot, fading in and out. */
+    function drawClouds(ctx, scene, t) {
+        const {clouds, flip} = scene;
+        const sprite = CLOUD();
+        for (let n = clouds.length - 1; n >= 0; n--) {
+            const c = clouds[n];
+            if (t > c.until) { clouds[n] = clouds[clouds.length - 1]; clouds.pop(); continue; }
+            const x = flip ? E.W - c.x : c.x, y = flip ? E.H - c.y : c.y;
+            ctx.globalAlpha = Math.min(1, (t - c.born) / 8, (c.until - t) / 20);
+            for (let k = 0; k < 7; k++) {
+                const a = k * 0.9 + t * 0.012 * (k % 2 ? 1 : -1), d = c.r * (k ? 0.45 : 0), r = c.r * (k ? 0.65 : 0.9);
+                ctx.drawImage(sprite, x + Math.cos(a) * d - r, y + Math.sin(a) * d * 0.7 - r * 0.8, r * 2, r * 1.6);
+            }
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    /** A vortex: spiral arms turning round a dark eye, on the grass under the troops. */
+    function drawWhirls(ctx, scene, t) {
+        const {whirls, flip} = scene;
+        for (let n = whirls.length - 1; n >= 0; n--) {
+            const v = whirls[n];
+            if (t > v.until) { whirls[n] = whirls[whirls.length - 1]; whirls.pop(); continue; }
+            const x = flip ? E.W - v.x : v.x, y = flip ? E.H - v.y : v.y;
+            const grow = Math.min(1, (t - v.born) / 10), spin = t * 0.25;
+            ctx.globalAlpha = 0.8 * grow;
+            ctx.drawImage(EYE(), x - v.r * grow, y - v.r * 0.7 * grow, v.r * 2 * grow, v.r * 1.4 * grow);
+            ctx.strokeStyle = 'rgba(190, 130, 255, .8)';
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            for (let arm = 0; arm < 3; arm++) {
+                for (let k = 0; k <= 14; k++) {
+                    const f = k / 14, a = spin + arm * 2.09 + f * 3.2, r = v.r * grow * (1 - f * 0.85);
+                    if (k) ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r * 0.7);
+                    else ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r * 0.7);
+                }
+            }
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
     }
 
     function drawEffects(ctx, scene, t) {
@@ -1349,8 +1442,10 @@
         } else {
             h.textContent = rw === mine ? 'Round won!' : rw === -1 ? 'Round drawn' : 'Round lost';
             h.className = rw === mine ? 'win' : rw === -1 ? '' : 'lose';
-            sub.textContent = rw === mine ? `${name} loses a heart and gets rarer cards next round.`
-                : rw === -1 ? 'Nobody loses a heart.' : `You lose a heart. Rarer cards for you next round.`;
+            // What the next round deals you, if it leans either way.
+            const next = E.standing(resultsOf(s, round + 1), round + 1, mine, s.rules, boostOf(s, mine));
+            const cards = next ? ` ${COMEBACK[next].replace('this round', 'next round')}` : '';
+            sub.textContent = rw === mine ? `${name} loses a heart.${cards}` : rw === -1 ? `Nobody loses a heart.${cards}` : `You lose a heart.${cards}`;
         }
         p.append(h, sub);
         if (over && table.kind === 'solo') {
@@ -1428,7 +1523,8 @@
         openSheet(`<h2>How to play</h2>
             <p>Every round you add cards to your army: three in the first round, two in each round after. Each pick offers three cards of the same rarity. Your rival drafts at the same time from offers of their own and sees your army only when the battle starts.</p>
             <p>Your army stays. Round three fights with every card picked in rounds one to three, and troop cards bring more troops the later they are picked.</p>
-            <p>Then the armies march and fight on their own. Lose a battle and you lose a heart; a draw costs nobody a heart. Out of three hearts, out of the match. The loser of a round gets rarer cards in the next one.</p>
+            <p>Then the armies march and fight on their own. Lose a battle and you lose a heart; a draw costs nobody a heart. Out of three hearts, out of the match.</p>
+            <p>Whoever is behind is dealt rarer cards, the further behind the rarer, and whoever leads gets plainer ones. The round just fought tips it one step more. A custom match can turn this off.</p>
             <h3>Who beats whom</h3>
             <div class="ring">${ring}</div>
             <p>Each troop hits the next one on the ring twice as hard and takes little from it; two steps on it still has the edge. So every army has an answer. The Dragon burns Knights and falls to Archers; Towers stop Goblins and Giants knock them down.</p>
@@ -1507,6 +1603,7 @@
     for (const [input, field] of [[els.customHearts, 'hearts'], [els.customPicks, 'picks']]) {
         input.addEventListener('change', () => { setCustom(field, input.value); input.value = store.custom[field]; renderCustom(); });
     }
+    els.customBalance.addEventListener('change', () => { setCustom('balance', els.customBalance.checked); renderCustom(); });
     els.custom.addEventListener('click', (e) => {
         const step = e.target.closest('[data-for]');
         if (!step) return;

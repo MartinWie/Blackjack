@@ -45,13 +45,16 @@
     const HEARTS = 3, ROUNDS_PER_HEART = 5, MAX_ROUNDS = HEARTS * ROUNDS_PER_HEART, OFFER = 3;
     /** No match runs longer, however many hearts: it bounds a room's history and a reload's replay. */
     const ROUND_LIMIT = 1000;
-    /** A match's rules. The hidden custom mode sets hearts and one pick count for every round. */
-    const STANDARD = {hearts: HEARTS, firstPicks: 3, picks: 2};
+    /**
+     * A match's rules. The hidden custom mode sets hearts, one pick count for every round,
+     * and whether offers lean against the leader (`balance`, see standing).
+     */
+    const STANDARD = {hearts: HEARTS, firstPicks: 3, picks: 2, balance: true};
     const MAX_HEARTS = 99999, MAX_PICKS = 10;
-    function customRules(hearts, picks) {
+    function customRules(hearts, picks, balance = true) {
         const fit = (v, hi) => Math.max(1, Math.min(hi, Math.floor(Number(v)) || 1));
         const p = fit(picks, MAX_PICKS);
-        return {hearts: fit(hearts, MAX_HEARTS), firstPicks: p, picks: p};
+        return {hearts: fit(hearts, MAX_HEARTS), firstPicks: p, picks: p, balance: balance !== false};
     }
     const picksIn = (round, rules) => (round === 0 ? (rules || STANDARD).firstPicks : (rules || STANDARD).picks);
     /** Rounds before the hearts left decide: enough for every heart and a run of drawn rounds. */
@@ -66,7 +69,7 @@
         knight: {name: 'Knight', hp: 264, atk: 28, range: 16, speed: 9, cd: 18, r: 14},
         archer: {name: 'Archer', hp: 62, atk: 16, range: 300, speed: 5, cd: 19, r: 10, shot: 'arrow'},
         goblin: {name: 'Goblin', hp: 50, atk: 9, range: 12, speed: 11, cd: 9, r: 9},
-        mage: {name: 'Mage', hp: 95, atk: 34, range: 240, speed: 5, cd: 22, r: 11, shot: 'orb'},
+        mage: {name: 'Mage', hp: 95, atk: 32, range: 240, speed: 5, cd: 22, r: 11, shot: 'orb'},
         giant: {name: 'Giant', hp: 987, atk: 46, range: 22, speed: 3, cd: 30, r: 24, splash: 34, cleave: 35},
         dragon: {name: 'Dragon', hp: 860, atk: 38, range: 150, speed: 6, cd: 22, r: 22, shot: 'flame', splash: 58, fly: true},
         tower: {name: 'Tower', hp: 1200, atk: 30, range: 360, speed: 0, cd: 10, r: 22, shot: 'arrow', fixed: true},
@@ -130,8 +133,11 @@
         catapult: {kind: 'def', rarity: 1, name: 'Catapult', text: 'Hurls boulders from the back'},
         fireball: {kind: 'spell', rarity: 1, name: 'Fireball', text: 'Burns the enemy crowd'},
         lightning: {kind: 'spell', rarity: 1, name: 'Lightning', text: 'Strikes the toughest foes'},
-        frost: {kind: 'spell', rarity: 1, name: 'Frost', text: 'Freezes the enemy as the armies meet'},
+        poison: {kind: 'spell', rarity: 1, name: 'Poison Cloud', text: 'A toxic cloud eats at the enemy crowd'},
+        quake: {kind: 'spell', rarity: 1, name: 'Earthquake', text: 'Shakes enemy buildings and walls apart and rattles their troops'},
+        cry: {kind: 'spell', rarity: 1, name: 'Battle Cry', text: 'Your troops charge faster and strike harder and quicker'},
         meteor: {kind: 'spell', rarity: 2, name: 'Meteor Shower', text: 'Rocks rain on the enemy all battle'},
+        vortex: {kind: 'spell', rarity: 2, name: 'Vortex', text: 'Drags the enemy crowd together and bursts, three times'},
     };
     const TROOP_CARD = {};
     for (const [id, c] of Object.entries(CARDS)) if (c.kind === 'troop') TROOP_CARD[c.unit] = id;
@@ -148,41 +154,43 @@
     // sets these so no card is the obvious pick of its rarity; keep its output.
     // POWER:BEGIN
     const POWER = {
-        archers: 99,
-        armor: 173,
-        arms: 72,
-        berserk: 213,
+        archers: 110,
+        armor: 142,
+        arms: 63,
+        berserk: 168,
         bomb: 200,
-        catapult: 60,
-        dragon: 96,
-        fireball: 137,
-        frost: 99,
-        giant: 100,
-        goblins: 109,
-        haste: 108,
-        knights: 94,
-        lightning: 83,
+        catapult: 51,
+        dragon: 74,
+        fireball: 94,
+        goblins: 110,
+        haste: 105,
+        knights: 104,
+        lightning: 93,
         mages: 90,
-        medics: 50,
-        meteor: 114,
-        rage: 190,
-        rally: 61,
-        shields: 137,
-        spears: 93,
-        vampire: 61,
+        medics: 35,
+        meteor: 113,
+        poison: 80,
+        quake: 144,
+        rage: 163,
+        rally: 53,
+        shields: 110,
+        spears: 90,
+        tower: 86,
+        vampire: 50,
+        vortex: 119,
         wall: 150,
-        x2archer: 72,
-        x2giant: 102,
-        x2goblin: 63,
-        x2knight: 55,
-        x2mage: 49,
-        x2spear: 57,
-        x3archer: 48,
-        x3giant: 130,
-        x3goblin: 78,
-        x3knight: 140,
-        x3mage: 97,
-        x3spear: 61,
+        x2archer: 82,
+        x2giant: 67,
+        x2goblin: 91,
+        x2knight: 49,
+        x2mage: 45,
+        x2spear: 58,
+        x3archer: 50,
+        x3giant: 94,
+        x3goblin: 79,
+        x3knight: 114,
+        x3mage: 76,
+        x3spear: 56,
     };
     // POWER:END
     const pw = (id) => POWER[id] || 100;
@@ -204,14 +212,36 @@
     // --- offers ---------------------------------------------------------------------
 
     /**
-     * The three cards `seat` is offered for pick `pick` of `round`. All three are of one
-     * rarity, so a pick is a choice between equals and never an epic among commons. The
-     * first offer of a match is all troops. `rich` (the seat lost the round before) makes
-     * rare and epic offers likelier.
+     * Odds of a common, rare and epic offer by standing, from far behind (-3) to far ahead (3):
+     * whoever is behind is dealt rarer cards, whoever leads plainer ones.
      */
-    function offer(seed, match, round, seat, pick, rich) {
+    const ODDS = [[20, 45, 35], [30, 44, 26], [42, 40, 18], [58, 32, 10], [68, 26, 6], [76, 21, 3], [84, 15, 1]];
+
+    /**
+     * How `seat` stands before `round`, -3 to 3: the hearts it is up or down (in steps of a
+     * third of the match's hearts) and one more step for the round just fought. `boost`
+     * (a bot's handicap) counts two steps further behind. A custom match may turn it off.
+     */
+    function standing(results, round, seat, rules, boost = false) {
+        if (rules && rules.balance === false) return boost ? -2 : 0;
+        let lead = 0, last = 0;
+        for (let r = 0; r < round && r < results.length; r++) {
+            last = results[r] === seat ? 1 : results[r] === 1 - seat ? -1 : 0;
+            lead += last;
+        }
+        if (round > results.length) last = 0;
+        const step = Math.max(1, Math.floor((rules || STANDARD).hearts / 3));
+        return Math.max(-3, Math.min(3, Math.trunc(lead / step) + last - (boost ? 2 : 0)));
+    }
+
+    /**
+     * The three cards `seat` is offered for pick `pick` of `round`, at standing `edge` (see
+     * standing). All three are of one rarity, so a pick is a choice between equals and never
+     * an epic among commons. The first offer of a match is all troops.
+     */
+    function offer(seed, match, round, seat, pick, edge = 0) {
         const r = rng(hashSeed(`draft:offer:${seed}:${match}:${round}:${seat}:${pick}`));
-        const odds = rich ? [35, 43, 22] : [58, 32, 10];
+        const odds = ODDS[3 + Math.max(-3, Math.min(3, edge))];
         let x = r() * 100, k = 0;
         while (k < 2 && x >= odds[k]) { x -= odds[k]; k++; }
         const ids = round === 0 && pick === 0 ? OPENERS : BY_RARITY[k];
@@ -223,17 +253,16 @@
         return out;
     }
 
-    /** Did `seat` lose the round before `round`? Such a seat gets rich offers. */
-    const lostLast = (results, round, seat) => round > 0 && results[round - 1] === 1 - seat;
-
     /**
      * The cards `seat` kept, per round, from `picks` (per round, per seat, the choices
      * 0..OFFER-1; -1 for a choice not revealed yet, skipped). `results` holds the winner
-     * of each round fought so far; `boost` makes every offer rich (a bot's handicap).
+     * of each round fought so far, which sets each round's standing.
      */
-    function cardsOf(seed, match, picks, seat, results, boost = false) {
-        return picks.map((both, round) => (both[seat] || []).filter((c) => c >= 0).map((c, k) =>
-            offer(seed, match, round, seat, k, boost || lostLast(results, round, seat))[c]));
+    function cardsOf(seed, match, picks, seat, results, boost = false, rules) {
+        return picks.map((both, round) => {
+            const edge = standing(results, round, seat, rules, boost);
+            return (both[seat] || []).filter((c) => c >= 0).map((c, k) => offer(seed, match, round, seat, k, edge)[c]);
+        });
     }
 
     /** Hearts per seat after the rounds fought; `over` once someone has none (or every round is played). */
@@ -265,7 +294,7 @@
     function army(byRound) {
         const a = {worth: {}, count: {}, placed: {}, vet: {}, tower: 0, catapult: 0, wall: 0, fort: 100,
             atk: 100, hp: 100, haste: 0, guard: 100, vamp: 0, bomb: 0, heal: 0, berserk: 0,
-            fireball: 0, lightning: 0, frost: 0, meteor: 0};
+            fireball: 0, lightning: 0, poison: 0, quake: 0, cry: 0, meteor: 0, vortex: 0};
         for (const t of TROOPS) a.worth[t] = 0;
         const muls = [];
         byRound.forEach((ids, round) => {
@@ -325,6 +354,9 @@
         this.events = [];
         this.blasts = [];
         this.meteors = [0, 0];
+        this.clouds = [];
+        this.whirls = [];
+        this.cry = [0, 0];   // per side, the tick its battle cry ends
         this.scale = spellScale(round);
         this.armies = [army(cardsA), army(cardsB)];
         this.done = false;
@@ -347,7 +379,7 @@
             fixed: !!base.fixed, wall: !!base.wall, fly: !!base.fly, vet,
             speed: troop ? pct(base.speed, 100 + pct(Math.min(a.haste, 300), 50)) : 0,
             cd: Math.max(4, pct(base.cd, 100 - pct(Math.min(a.haste, 300), 22) - pct(Math.min(a.haste, 100), 13))), cdLeft: 0,
-            guard: a.guard, vamp: troop ? a.vamp : 0, frozen: 0,
+            guard: a.guard, vamp: troop ? a.vamp : 0,
             target: -1, alive: true, died: -1, revived: false,
         };
         this.units.push(u);
@@ -415,7 +447,7 @@
         for (let i = 0; i < this.blasts.length; i++) {
             const u = this.blasts[i], a = this.armies[u.side];
             const reach = 40 + u.r, dmg = pct(u.maxHp, Math.min(60, 14 + pct(a.bomb, 10))) + pct(pct(20, this.scale), Math.min(a.bomb, 300));
-            this.events.push({t: 'blast', side: u.side, x: u.x, y: u.y, r: reach});
+            if (!this.quiet) this.events.push({t: 'blast', side: u.side, x: u.x, y: u.y, r: reach});
             for (const e of this.units) if (e.alive && e.side !== u.side && !e.wall && d2(e, u) <= reach * reach) this.hurt(e, dmg, null);
         }
         this.blasts.length = 0;
@@ -444,31 +476,65 @@
         return this.units.filter((e) => e.alive && e.side !== side && !e.wall && (buildings || !e.fixed));
     };
 
-    /** Spells: each on its tick, a meteor every 12 ticks once the armies close. */
+    /** The middle of `side`'s enemy troops, or null when none stand. */
+    Battle.prototype.crowd = function (side) {
+        let n = 0, x = 0, y = 0;
+        for (const e of this.units) if (e.alive && e.side !== side && !e.fixed) { n++; x += e.x; y += e.y; }
+        return n ? {x: Math.floor(x / n), y: Math.floor(y / n)} : null;
+    };
+
+    /**
+     * Spells, each on its tick as the armies close: a fireball, an earthquake, a battle cry,
+     * a poison cloud that lingers, a vortex that pulls and bursts, lightning, and a meteor
+     * every 12 ticks. None of them holds the battle up.
+     */
     Battle.prototype.specials = function () {
         const t = this.tick;
         this.armies.forEach((a, side) => {
+            if (a.quake && t === 20) {
+                // Buildings and walls lose a share of their health; troops take a lighter blow.
+                const share = Math.min(80, pct(28 * a.quake, pw('quake')));
+                if (!this.quiet) this.events.push({t: 'quake', side});
+                for (const e of this.units) {
+                    if (!e.alive || e.side === side) continue;
+                    this.hurt(e, e.fixed ? pct(e.maxHp, share) : pct(pct(30 * a.quake, this.scale) + pct(e.maxHp, 5 * a.quake), pw('quake')), null);
+                }
+            }
             if (a.fireball && t === 24) {
-                const foes = this.foes(side, false);
-                if (foes.length) {
-                    const cx = Math.floor(foes.reduce((s, e) => s + e.x, 0) / foes.length);
-                    const cy = Math.floor(foes.reduce((s, e) => s + e.y, 0) / foes.length);
+                const c = this.crowd(side);
+                if (c) {
+                    const foes = this.foes(side, false), cx = c.x, cy = c.y;
                     const rad = 110 + 25 * a.fireball;
-                    this.events.push({t: 'fireball', side, x: cx, y: cy, r: rad});
+                    if (!this.quiet) this.events.push({t: 'fireball', side, x: cx, y: cy, r: rad});
                     for (const e of foes) if (d2(e, {x: cx, y: cy}) <= rad * rad) this.hurt(e, pct(pct(115 * a.fireball, this.scale) + pct(e.maxHp, 10 * a.fireball), pw('fireball')), null);
                 }
             }
             if (a.lightning && t === 36) {
                 const tough = this.foes(side, true).sort((p, q) => q.hp - p.hp || p.id - q.id).slice(0, 6 * a.lightning);
                 for (const e of tough) {
-                    this.events.push({t: 'bolt', side, x: e.x, y: e.y});
+                    if (!this.quiet) this.events.push({t: 'bolt', side, x: e.x, y: e.y});
                     this.hurt(e, pct(pct(240, this.scale) + pct(e.maxHp, 22), pw('lightning')), null);
                 }
             }
-            if (a.frost && t === 28) {
-                const until = t + pct(60 + 30 * a.frost, pw('frost'));
-                for (const e of this.foes(side, true)) e.frozen = Math.max(e.frozen, until);
-                this.events.push({t: 'frost', side, until});
+            if (a.cry && t === 26) {
+                this.cry[side] = t + pct(120 + 40 * a.cry, pw('cry'));
+                if (!this.quiet) this.events.push({t: 'cry', side, until: this.cry[side]});
+            }
+            if (a.poison && t === 30) {
+                const c = this.crowd(side);
+                if (c) {
+                    const cloud = {side, x: c.x, y: c.y, r: 100 + 15 * a.poison, at: t, until: t + 150, n: a.poison};
+                    this.clouds.push(cloud);
+                    if (!this.quiet) this.events.push({t: 'poison', side, x: cloud.x, y: cloud.y, r: cloud.r, until: cloud.until});
+                }
+            }
+            if (a.vortex && t >= 32 && t <= 272 && (t - 32) % 120 === 0) {
+                const c = this.crowd(side);
+                if (c) {
+                    const whirl = {side, x: c.x, y: c.y, r: 150 + 20 * a.vortex, until: t + 50, n: a.vortex};
+                    this.whirls.push(whirl);
+                    if (!this.quiet) this.events.push({t: 'vortex', side, x: whirl.x, y: whirl.y, r: whirl.r, until: whirl.until});
+                }
             }
             if (a.meteor && t >= 40 && t % 12 === 4 && this.meteors[side] < 5 * a.meteor) {
                 const foes = this.foes(side, false);
@@ -476,15 +542,44 @@
                     this.meteors[side]++;
                     const e = foes[Math.floor(this.r() * foes.length)];
                     const rad = 72;
-                    this.events.push({t: 'meteor', side, x: e.x, y: e.y, r: rad});
+                    if (!this.quiet) this.events.push({t: 'meteor', side, x: e.x, y: e.y, r: rad});
                     for (const f of foes) if (d2(f, e) <= rad * rad) this.hurt(f, pct(pct(90, this.scale) + pct(f.maxHp, 10), pw('meteor')), null);
                 }
             }
         });
+        // A cloud bites the enemy troops inside it every 10 ticks.
+        for (const c of this.clouds) {
+            if (t > c.until || t === c.at || (t - c.at) % 10) continue;
+            const r2 = c.r * c.r;
+            for (const e of this.units) {
+                if (!e.alive || e.side === c.side || e.fixed || d2(e, c) > r2) continue;
+                this.hurt(e, pct(pct(26 * c.n, this.scale) + pct(e.maxHp, 4 * c.n), pw('poison')), null);
+            }
+        }
+        // A vortex drags enemy troops towards its eye, then bursts on whoever it gathered.
+        // Done ones stay in the list (at most three a side), so nothing is spliced mid-battle.
+        for (const v of this.whirls) {
+            if (t > v.until) continue;
+            const r2 = v.r * v.r;
+            if (t === v.until && !this.quiet) this.events.push({t: 'burst', side: v.side, x: v.x, y: v.y, r: pct(v.r, 60)});
+            for (const e of this.units) {
+                if (!e.alive || e.side === v.side || e.fixed) continue;
+                const dx = v.x - e.x, dy = v.y - e.y, dd = dx * dx + dy * dy;
+                if (dd > r2) continue;
+                if (t < v.until) {
+                    const d = isqrt(dd);
+                    if (d > 6) { e.x += Math.trunc((dx * 5) / d); e.y += Math.trunc((dy * 5) / d); }
+                } else if (dd * 100 <= r2 * 36) {
+                    this.hurt(e, pct(pct(160 * v.n, this.scale) + pct(e.maxHp, 20 * v.n), pw('vortex')), null);
+                }
+            }
+        }
     };
 
     Battle.prototype.act = function (u) {
-        if (!u.alive || u.atk === 0 || u.frozen > this.tick) return;
+        if (!u.alive || u.atk === 0) return;
+        // A battle cry: troops strike sooner and march half again as fast.
+        const cry = !u.fixed && this.cry[u.side] > this.tick;
         if (u.cdLeft > 0) u.cdLeft--;
         if (u.target < 0 || !this.units[u.target].alive || this.tick % 8 === u.id % 8) u.target = this.nearest(u);
         if (u.target < 0) return;
@@ -493,25 +588,26 @@
         const reach = u.range + u.r + t.r;
         if (dist2 <= reach * reach) {
             if (u.cdLeft > 0) return;
-            u.cdLeft = u.cd;
+            u.cdLeft = cry ? Math.max(3, pct(u.cd, 60)) : u.cd;
+            const atk = cry ? pct(u.atk, 140) : u.atk;
             if (u.shot) {
                 const speed = u.shot === 'rock' ? 15 : u.shot === 'flame' ? 20 : u.shot === 'orb' ? 22 : 26;
                 this.shots.push({kind: u.shot, side: u.side, from: u.id, target: t.id, x: u.x, y: u.y, px: u.x, py: u.y, tx: t.x, ty: t.y,
-                    speed, dmg: u.atk, splash: u.splash, done: false});
+                    speed, dmg: atk, splash: u.splash, done: false});
                 if (!this.quiet) this.events.push({t: 'shoot', id: u.id});
             } else {
                 if (!this.quiet) this.events.push({t: 'swing', id: u.id, target: t.id});
-                this.hurt(t, u.atk, u);
+                this.hurt(t, atk, u);
                 if (u.splash) {
                     for (const e of this.units) {
-                        if (e.alive && e.side !== u.side && e.id !== t.id && d2(e, t) <= u.splash * u.splash) this.hurt(e, pct(u.atk, u.cleave), u);
+                        if (e.alive && e.side !== u.side && e.id !== t.id && d2(e, t) <= u.splash * u.splash) this.hurt(e, pct(atk, u.cleave), u);
                     }
                 }
             }
         } else if (!u.fixed) {
             // Never a step that rounds to nothing, or two units stand one short of reach forever.
             const d = isqrt(dist2);
-            const step = Math.max(1, Math.min(u.speed, d - reach + 1));
+            const step = Math.max(1, Math.min(cry ? pct(u.speed, 150) : u.speed, d - reach + 1));
             let mx = Math.trunc((dx * step) / d), my = Math.trunc((dy * step) / d);
             if (!mx && !my) { if (Math.abs(dx) >= Math.abs(dy)) mx = Math.sign(dx); else my = Math.sign(dy); }
             u.x += mx;
@@ -640,13 +736,14 @@
      * stand: what it has shown so far plus as many picks of this round as the bot has
      * made, each way it might take its offers (the offers are public, the choices are not).
      */
-    function botChoice(seed, match, picks, round, seat, results, boost = false) {
-        const mine = cardsOf(seed, match, picks.slice(0, round + 1), seat, results, boost);
+    function botChoice(seed, match, picks, round, seat, results, boost = false, rules) {
+        const mine = cardsOf(seed, match, picks.slice(0, round + 1), seat, results, boost, rules);
         while (mine.length <= round) mine.push([]);
-        const shown = cardsOf(seed, match, picks.slice(0, round), 1 - seat, results);
+        const shown = cardsOf(seed, match, picks.slice(0, round), 1 - seat, results, false, rules);
         const k = mine[round].length;
-        const options = offer(seed, match, round, seat, k, boost || lostLast(results, round, seat));
-        const theirs = Array.from({length: k + 1}, (_, n) => offer(seed, match, round, 1 - seat, n, lostLast(results, round, 1 - seat)));
+        const options = offer(seed, match, round, seat, k, standing(results, round, seat, rules, boost));
+        const rival = standing(results, round, 1 - seat, rules);
+        const theirs = Array.from({length: k + 1}, (_, n) => offer(seed, match, round, 1 - seat, n, rival));
         const rivals = [0, 1, 2].map((j) => shown.concat([theirs.map((o) => o[j])]));
         let best = 0, bestScore = -Infinity;
         options.forEach((id, c) => {
@@ -665,7 +762,7 @@
 
     const api = {W, H, TICK_MS, MAX_TICKS, HEARTS, ROUNDS_PER_HEART, MAX_ROUNDS, ROUND_LIMIT, OFFER, MAX_FIELD, UNITS, TYPES, TROOPS, CIRCLE, STRONG, WEAK,
         STANDARD, MAX_HEARTS, MAX_PICKS, customRules, maxRounds,
-        CARDS, TROOP_CARD, POWER, pw, factor, brings, hashSeed, rng, picksIn, offer, lostLast, cardsOf, score, growth, army, advantage, preyOf, foesOf,
+        CARDS, TROOP_CARD, POWER, pw, factor, brings, hashSeed, rng, picksIn, offer, standing, cardsOf, score, growth, army, advantage, preyOf, foesOf,
         Battle, fight, battleSeed, botChoice};
     root.DraftEngine = api;
     if (typeof module !== 'undefined') module.exports = api;

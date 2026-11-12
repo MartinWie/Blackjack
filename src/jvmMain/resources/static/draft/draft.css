@@ -100,6 +100,16 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .custom .row { display: flex; gap: 8px; }
 .custom .row .mid-btn { flex: 1; padding: 11px 8px; }
 #custom-play { background: #8E5BE8; box-shadow: 0 4px 0 #6B3FC4; }
+.switch { position: relative; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.switch-text strong { font-size: 14px; font-weight: 900; }
+.switch-text small { font-size: 12px; font-weight: 800; color: var(--ink-soft); }
+.switch-knob { flex: none; position: relative; width: 46px; height: 28px; border-radius: 999px; background: rgba(59, 44, 34, .2); transition: background .2s; }
+.switch-knob::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .2s cubic-bezier(.3, 1.4, .5, 1); }
+.switch input:checked ~ .switch-knob { background: #8E5BE8; }
+.switch input:checked ~ .switch-knob::after { transform: translateX(18px); }
+.switch input:focus-visible ~ .switch-knob { outline: 3px solid rgba(142, 91, 232, .5); outline-offset: 2px; }
 
 .lobby-card { margin-top: 30px; border-radius: 22px; background: var(--paper); box-shadow: var(--shadow); padding: 22px 16px; text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: center; }
 .lobby-card p { margin: 0; font-weight: 800; color: var(--ink-soft); }
@@ -153,6 +163,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .round-line strong { font-size: 20px; font-weight: 900; }
 .round-line span { padding: 3px 10px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 12px; font-weight: 900; }
 .comeback { margin: -4px 0 0; text-align: center; font-size: 13px; font-weight: 900; color: #8E5BE8; }
+.comeback.ahead { color: var(--ink-soft); }
 .offer { display: flex; justify-content: center; gap: 10px; min-height: 214px; }
 .card {
     --edge: #E6D6BC; position: relative; width: min(31.5%, 150px); aspect-ratio: 3 / 4.4; border-radius: 18px; padding: 8px 6px 8px;

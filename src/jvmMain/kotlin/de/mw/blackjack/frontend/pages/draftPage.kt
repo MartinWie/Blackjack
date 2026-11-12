@@ -106,6 +106,14 @@ fun draftPage(): String = buildString {
                             stepper("custom-hearts", "Hearts")
                             stepper("custom-picks", "Cards a round")
                         }
+                        label(classes = "switch") {
+                            input(type = InputType.checkBox) { id = "custom-balance" }
+                            span(classes = "switch-text") {
+                                strong { +"Catch-up cards" }
+                                small { +"Whoever is behind gets rarer cards, the leader plainer ones" }
+                            }
+                            span(classes = "switch-knob") { attributes["aria-hidden"] = "true" }
+                        }
                         div(classes = "row") {
                             button(classes = "mid-btn") { id = "custom-play"; +"Play the bot" }
                             button(classes = "mid-btn") { id = "custom-room"; +"Open a room" }
@@ -169,7 +177,7 @@ fun draftPage(): String = buildString {
                                 strong { id = "round-name"; +"Round 1" }
                                 span { id = "pick-line" }
                             }
-                            p(classes = "comeback") { id = "comeback"; hidden = true; +"Lost the last round: rarer cards for you." }
+                            p(classes = "comeback") { id = "comeback"; hidden = true }
                             div(classes = "offer") { id = "offer" }
                             p(classes = "prompt") { id = "prompt"; attributes["aria-live"] = "polite" }
                         }

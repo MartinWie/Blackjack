@@ -211,11 +211,16 @@ Both players draft at once, each from offers of their own: three cards of one ra
 picks in the first round and two in every round after. Cards stay for the whole match, so
 round three fights with everything picked in rounds one to three, and troop cards bring
 more troops the later they are kept. Each player has three hearts; a lost battle costs
-one, a draw none, and the loser of a round gets rarer offers in the next. Cards are
+one, a draw none. Offers lean against the leader: a player's standing (the hearts they
+are up or down, plus a step for the round just fought, -3 to 3) sets the odds of a rare
+or epic offer, so whoever is behind is dealt rarer cards and whoever leads plainer ones,
+the more so the bigger the lead. Cards are
 troops, multipliers (a double of every troop, a triple as an epic card, Rally, Call to
 Arms), boosts (rage, armor, shields, haste, vampire, bomb belts, medics, berserk),
-buildings (wall, tower, catapult) and spells (fireball, lightning, frost, a meteor
-shower). An army too big for the field sends veterans: fewer troops, each as strong as
+buildings (wall, tower, catapult) and spells (fireball, lightning, a poison cloud, an
+earthquake that breaks buildings and walls, a battle cry that speeds troops up, a meteor
+shower, a vortex that gathers the enemy and bursts). No spell holds a battle up: a freeze
+that both players could cast on each other only made battles longer, so there is none. An army too big for the field sends veterans: fewer troops, each as strong as
 the ones it stands for.
 
 The six troops form a ring: Spearmen beat Knights, Knights beat Archers, Archers beat
@@ -243,8 +248,8 @@ the page never stalls. Lower ranks (Bronze to Master, by trophies) slip into ran
 now and then, and from Gold on the bot drafts from rarer cards. A solo match in progress
 is saved and resumes.
 
-A hidden custom mode sets the hearts (up to 99999) and the cards picked every round (1 to
-10). Tapping or scrolling five times on the mage at the foot of the rules shows it on the
+A hidden custom mode sets the hearts (up to 99999), the cards picked every round (1 to
+10), and whether catch-up cards are on (`balance`; always on in a standard match). Tapping or scrolling five times on the mage at the foot of the rules shows it on the
 home screen (five more hide it). It plays the bot or opens a room: the room keeps its
 `DraftRules`, which every state carries, so the friend who joins plays the same rules.
 Custom matches against the bot are saved apart from the ranked one and count for no

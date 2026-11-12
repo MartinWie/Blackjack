@@ -35,7 +35,7 @@ for (let k = 0; k < BASES; k++) {
         const picks = [];
         const n = E.picksIn(rd) - (rd === round ? 1 : 0);
         for (let p = 0; p < n; p++) {
-            const o = E.offer(seed, 0, rd, 0, p, false);
+            const o = E.offer(seed, 0, rd, 0, p, 0);
             picks.push(o[Math.floor(r() * o.length)]);
         }
         byRound.push(picks);

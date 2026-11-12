@@ -205,6 +205,8 @@ class DraftRoomTest {
     @Test
     fun `custom rules stay in bounds`() {
         assertEquals(DraftRules(1, 1, 1), DraftRules.custom(0, -3))
+        assertEquals(false, DraftRules.custom(5, 2, balance = false).balance)
+        assertEquals(true, DraftRules.STANDARD.balance)
         assertEquals(DraftRules(DraftRules.MAX_HEARTS, DraftRules.MAX_PICKS, DraftRules.MAX_PICKS), DraftRules.custom(Int.MAX_VALUE, 99))
         assertEquals(DraftRules.ROUND_LIMIT, DraftRules.custom(Int.MAX_VALUE, 1).maxRounds)
         assertEquals(20 * DraftRules.ROUNDS_PER_HEART, DraftRules.custom(20, 1).maxRounds)
