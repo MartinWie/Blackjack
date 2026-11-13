@@ -123,15 +123,28 @@ body.running .top { display: none; }
 .wpn.evo { box-shadow: inset 0 -3px 0 #FF7AC8, 0 0 12px rgba(255, 122, 200, .7), var(--shadow); }
 .wpn.evo b { background: #FF7AC8; }
 .wpn b { position: absolute; right: -4px; top: -5px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--t); color: #fff; font-size: 10px; font-weight: 900; display: grid; place-items: center; }
+/* The burst: charging, a grey tank filling with blue and a cyan ring round it, the
+   percentage inside; full, gold with a turning bright ring, a pop and a glow. */
 .ult {
-    position: relative; width: 58px; height: 58px; border-radius: 50%; flex: none; color: #fff; font-size: 12px; font-weight: 900;
-    background: conic-gradient(#6EC8FF var(--charge, 0%), rgba(59,44,34,.25) 0);
-    box-shadow: 0 4px 0 #3A78AE, var(--shadow);
+    position: relative; width: 64px; height: 64px; border-radius: 50%; flex: none; padding: 0; color: #fff;
+    background: #6B7A86; box-shadow: 0 4px 0 #46525C, var(--shadow);
 }
-.ult span { position: absolute; inset: 5px; border-radius: 50%; display: grid; place-items: center; background: var(--blue); }
-.ult.ready { animation: ready 1s ease-in-out infinite; }
-.ult.ready span { background: #2E8BD8; }
+.ult::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(#3FD4FF var(--charge, 0%), #A9B5BE 0); }
+.ult-face {
+    position: absolute; inset: 7px; border-radius: 50%; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: linear-gradient(to top, #2E8BD8 var(--charge, 0%), #56636E var(--charge, 0%));
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, .3);
+}
+.ult-face b { font-size: 16px; font-weight: 900; line-height: 1; text-shadow: 0 1px 2px rgba(0, 0, 0, .45); }
+.ult-face small { margin-top: 2px; font-size: 9px; font-weight: 900; letter-spacing: .6px; text-transform: uppercase; opacity: .85; }
 .ult:disabled { cursor: default; }
+.ult.ready { background: #E8901E; box-shadow: 0 4px 0 #B0600F, 0 0 18px 4px rgba(255, 190, 60, .7), var(--shadow); animation: ult-pop .5s cubic-bezier(.3, 1.8, .5, 1), ult-glow 1.2s .5s ease-in-out infinite; }
+.ult.ready::before { inset: -3px; background: conic-gradient(#FFF7C8, #FFC93C, #FF7A2F, #FFC93C, #FFF7C8, #FFC93C, #FF7A2F, #FFC93C, #FFF7C8); animation: spin 1.8s linear infinite; }
+.ult.ready .ult-face { background: radial-gradient(circle at 38% 30%, #FFF0A0, #FFB01F 55%, #F07C14); box-shadow: inset 0 -3px 0 rgba(160, 70, 0, .35); }
+.ult.ready .ult-face b { font-size: 15px; text-shadow: 0 1px 0 #A0500A, 0 0 6px rgba(160, 70, 0, .5); }
+.ult.ready .ult-face small { display: none; }
+@keyframes ult-pop { 0% { transform: scale(.8); } 60% { transform: scale(1.18); } 100% { transform: none; } }
+@keyframes ult-glow { 50% { transform: scale(1.07); box-shadow: 0 4px 0 #B0600F, 0 0 30px 10px rgba(255, 190, 60, .85), var(--shadow); } }
 
 /* --- toolbar and sheets (the house style) --------------------------------------- */
 
@@ -179,7 +192,6 @@ a.tool { text-decoration: none; }
 
 @keyframes wobble { 0%, 100% { transform: rotate(-4deg) scale(1); } 50% { transform: rotate(4deg) scale(1.05); } }
 @keyframes throb { 50% { transform: scale(1.15); } }
-@keyframes ready { 50% { box-shadow: 0 4px 0 #3A78AE, 0 0 0 8px rgba(110, 200, 255, .35); } }
 @keyframes pop { from { transform: translate(-50%, -50%) scale(0); } }
 @keyframes banner { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.4); } 20% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); } 35%, 80% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -80%) scale(.9); } }
 @keyframes grow { from { transform: scale(0); } }
@@ -195,3 +207,9 @@ a.tool { text-decoration: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes evolve-glow { 0%, 100% { box-shadow: 0 0 0 3px #FF7AC8, 0 0 14px rgba(255, 122, 200, .4), var(--shadow); } 50% { box-shadow: 0 0 0 3px #B57BFF, 0 0 30px rgba(181, 123, 255, .7), var(--shadow); } }
 @keyframes hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+/* iPhone Safari blurs a strip under its status bar and, in a tab, reports no inset for it:
+   the top of the page keeps clear of it. Elsewhere the safe-area padding above holds. */
+@supports (-webkit-touch-callout: none) {
+    .wrap { padding-top: max(28px, env(safe-area-inset-top)); }
+}

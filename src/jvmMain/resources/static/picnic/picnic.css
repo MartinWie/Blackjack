@@ -300,3 +300,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* iPhone Safari blurs a strip under its status bar and, in a tab, reports no inset for it:
+   the top of the page keeps clear of it. Elsewhere the safe-area padding above holds. */
+@supports (-webkit-touch-callout: none) {
+    .wrap { padding-top: max(28px, env(safe-area-inset-top)); }
+}

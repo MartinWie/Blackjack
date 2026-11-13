@@ -23,7 +23,7 @@
         coins: $('coins'), home: $('home'), run: $('run'),
         preview: $('preview'), chapterName: $('chapter-name'), chapterLine: $('chapter-line'), prevCh: $('prev-ch'), nextCh: $('next-ch'), play: $('play'),
         field: $('field'), progress: $('progress-fill'), chestMarks: $('chests'), core: $('core'), level: $('level'), xp: $('xp-fill'),
-        weapons: $('weapons'), ult: $('ult'), pause: $('pause'), banner: $('banner'), overlay: $('overlay'),
+        weapons: $('weapons'), ult: $('ult'), ultPct: $('ult-pct'), pause: $('pause'), banner: $('banner'), overlay: $('overlay'),
         hud: $('hud'), dock: $('dock'), labBtn: $('lab-btn'), helpBtn: $('help-btn'), fastBtn: $('fast-btn'),
         sheet: $('sheet'), sheetBody: $('sheet-body'), sheetClose: $('sheet-close'),
     };
@@ -564,10 +564,14 @@
         });
         put('level', run.level, (v) => { els.level.textContent = v; });
         put('xp', Math.min(100, Math.round((run.xp / run.need) * 100)), (v) => { els.xp.style.width = `${v}%`; });
-        put('charge', Math.round(run.charge * 100), (v) => {
+        // Floored: the button reads ready only when a tap will fire.
+        put('charge', Math.min(100, Math.floor(run.charge * 100)), (v) => {
+            const ready = v >= 100;
             els.ult.style.setProperty('--charge', `${v}%`);
-            els.ult.classList.toggle('ready', v >= 100);
-            els.ult.disabled = v < 100;
+            els.ult.classList.toggle('ready', ready);
+            els.ult.disabled = !ready;
+            els.ultPct.textContent = ready ? 'Burst!' : `${v}%`;
+            els.ult.setAttribute('aria-label', ready ? 'Antibody burst, ready' : `Antibody burst, ${v}% charged`);
         });
         put('weapons', run.armedAt, () => {
             els.weapons.innerHTML = Object.entries(run.weapons).map(([w, l]) => {

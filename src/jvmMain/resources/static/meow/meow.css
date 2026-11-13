@@ -378,3 +378,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
         .found .pill { font-size: 18px; min-width: 80px; }
     .fish svg { width: 30px; height: 21px; }
 }
+
+/* iPhone Safari blurs a strip under its status bar and, in a tab, reports no inset for it:
+   the top of the page keeps clear of it. Elsewhere the safe-area padding above holds. */
+@supports (-webkit-touch-callout: none) {
+    .wrap { padding-top: max(28px, env(safe-area-inset-top)); }
+}

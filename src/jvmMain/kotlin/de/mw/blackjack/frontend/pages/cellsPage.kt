@@ -123,10 +123,14 @@ fun cellsPage(): String = buildString {
                         div(classes = "weapons") { id = "weapons" }
                         toolButton("fast-btn", "Faster", ICON_FAST)
                         toolButton("pause", "Pause", ICON_PAUSE)
+                        // Fills like a tank while it charges, turns gold when full.
                         button(classes = "ult") {
                             id = "ult"
                             attributes["aria-label"] = "Antibody burst"
-                            span { +"Burst" }
+                            span(classes = "ult-face") {
+                                b { id = "ult-pct"; +"0%" }
+                                small { +"Burst" }
+                            }
                         }
                     }
                 }
