@@ -24,6 +24,15 @@ COPY src/jvmMain/kotlin/de/mw/draft/DraftRoom.kt ./src/jvmMain/kotlin/de/mw/draf
 ENV NO_TIMING=1
 RUN node tools/draft-check.mjs && node tools/draft-cards.mjs && node tools/cells-check.mjs && touch /app/checked
 
+# Offline play: every file the service worker precaches exists. A stage of its own, so a
+# static change elsewhere does not rerun the battle checks above.
+FROM node:20-alpine AS offline
+WORKDIR /app
+COPY tools/offline-check.mjs ./tools/offline-check.mjs
+COPY src/jvmMain/resources/static ./src/jvmMain/resources/static
+COPY src/jvmMain/kotlin/de/mw/blackjack/frontend/utils/Apps.kt ./src/jvmMain/kotlin/de/mw/blackjack/frontend/utils/Apps.kt
+RUN node tools/offline-check.mjs && touch /app/offline-checked
+
 # Stage 2 — the jar, and the engine bundle that goes in it.
 #
 # glibc, not alpine: this stage compiles the shared rules to JavaScript too, and the
@@ -36,6 +45,7 @@ COPY gradlew gradle.properties settings.gradle.kts build.gradle.kts ./
 COPY src ./src
 COPY --from=css /app/src/jvmMain/resources/static/output.css ./src/jvmMain/resources/static/output.css
 COPY --from=checks /app/checked /tmp/checked
+COPY --from=offline /app/offline-checked /tmp/offline-checked
 # shadowJar rather than `build`: it pulls in the JS bundle through
 # jvmProcessResources and skips the test tasks entirely.
 RUN chmod +x ./gradlew && ./gradlew shadowJar --no-daemon

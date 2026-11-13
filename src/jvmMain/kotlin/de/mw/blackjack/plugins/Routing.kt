@@ -188,6 +188,15 @@ fun Application.configureRouting() {
 
         staticResources("/static", "static") {
             preCompressed(CompressedFileType.GZIP)
+            // This build's `?v=<build>` URL never changes (every build gets a new one), so it
+            // is kept for good. Another build's `v` gets today's file, which must not stick.
+            modify { _, call ->
+                val v = call.request.queryParameters["v"] ?: return@modify
+                call.response.header(
+                    HttpHeaders.CacheControl,
+                    if (v == BuildInfo.id) "public, max-age=31536000, immutable" else "no-cache",
+                )
+            }
         }
 
         route("/api") {

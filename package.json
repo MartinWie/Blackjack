@@ -10,6 +10,7 @@
     "check:sweets": "node tools/sweets-check.mjs",
     "check:picnic": "node tools/picnic-check.mjs",
     "check:draft": "node tools/draft-check.mjs && node tools/draft-cards.mjs",
-    "check:cells": "node tools/cells-check.mjs"
+    "check:cells": "node tools/cells-check.mjs",
+    "check:offline": "node tools/offline-check.mjs"
   }
 }

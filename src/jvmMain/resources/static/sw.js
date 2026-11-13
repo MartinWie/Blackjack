@@ -170,13 +170,28 @@ const SHELL = [
     '/static/img/games/cells-192.png',
     '/static/img/games/marbles-192.png',
     '/static/install.js',
+    // Home-screen icons and manifests, so an installed game opens with no network at all.
+    '/static/img/games/blackjack-180.png',
+    '/static/img/games/meow-180.png',
+    '/static/img/games/sweets-180.png',
+    '/static/img/games/picnic-180.png',
+    '/static/img/games/draft-180.png',
+    '/static/img/games/cells-180.png',
+    '/manifest/games.webmanifest',
+    '/manifest/blackjack.webmanifest',
+    '/manifest/meow.webmanifest',
+    '/manifest/sweets.webmanifest',
+    '/manifest/picnic.webmanifest',
+    '/manifest/draft.webmanifest',
+    '/manifest/cells.webmanifest',
 ];
 
 self.addEventListener('install', (event) => {
     // Fetched one by one so a redirect (`/` on a marbles.* host) is skipped, not cached.
     event.waitUntil(
         caches.open(VERSION)
-            .then((cache) => Promise.all(SHELL.map((path) => fetch(path).then((response) => {
+            // `reload`: straight from the server, never a copy the browser kept from another build.
+            .then((cache) => Promise.all(SHELL.map((path) => fetch(path, {cache: 'reload'}).then((response) => {
                 if (!response.ok) throw new Error(`precache ${path}: ${response.status}`);
                 if (!response.redirected) return cache.put(path, response);
             }))))
@@ -192,6 +207,30 @@ self.addEventListener('activate', (event) => {
     );
 });
 
+// The build this worker was installed for (VERSION is `games-<build id>` when served).
+const BUILD = VERSION.startsWith('games-') ? VERSION.slice('games-'.length) : '';
+// How long a request waits for the network before a cached copy answers instead: a weak
+// signal must not hold a game up when everything it needs is already here.
+const NET_WAIT = 3500;
+
+/**
+ * The network's answer, or `cached()` once it fails or keeps us waiting past NET_WAIT
+ * (if that finds nothing the network keeps its chance). `last()` answers a failure with
+ * nothing cached.
+ */
+function patient(fetching, cached, last = () => Promise.resolve(undefined)) {
+    return new Promise((resolve, reject) => {
+        let done = false;
+        const answer = (r) => { if (!done) { done = true; resolve(r); } };
+        const timer = setTimeout(() => cached().then((hit) => { if (hit) answer(hit); }), NET_WAIT);
+        fetching.then((r) => { clearTimeout(timer); answer(r); }, () => {
+            clearTimeout(timer);
+            if (done) return;
+            cached().then((hit) => hit || last()).then((r) => (r ? answer(r) : reject(new Error('offline'))));
+        });
+    });
+}
+
 self.addEventListener('fetch', (event) => {
     const request = event.request;
     const url = new URL(request.url);
@@ -204,17 +243,19 @@ self.addEventListener('fetch', (event) => {
         // A shell page is re-cached on every online visit, so offline never runs
         // yesterday's HTML against today's scripts. Redirects are never cached: a
         // navigation cannot be answered with one.
-        event.respondWith(
-            fetch(request).then((response) => {
-                if (response.ok && !response.redirected && SHELL.includes(url.pathname)) {
-                    const copy = response.clone();
-                    caches.open(VERSION).then((cache) => cache.put(url.pathname, copy));
-                }
-                return response;
-            }).catch(() =>
-                caches.match(request, {ignoreSearch: true}).then((hit) => hit || caches.match('/offline')),
-            ),
-        );
+        const fetching = fetch(request).then((response) => {
+            if (response.ok && !response.redirected && SHELL.includes(url.pathname)) {
+                const copy = response.clone();
+                caches.open(VERSION).then((cache) => cache.put(url.pathname, copy));
+            }
+            return response;
+        });
+        const cached = () => caches.match(request, {ignoreSearch: true});
+        // A game page that runs in the browser does not wait out a weak signal; the lobby,
+        // drawn by the server for this player, does.
+        const wait = SHELL.includes(url.pathname) && url.pathname !== '/blackjack';
+        event.respondWith(wait ? patient(fetching, cached, () => caches.match('/offline'))
+            : fetching.catch(() => cached().then((hit) => hit || caches.match('/offline'))));
         return;
     }
 
@@ -227,15 +268,22 @@ self.addEventListener('fetch', (event) => {
     // every restart, so keying on the full URL would both serve yesterday's script
     // to today's page and grow the cache by a full copy per deploy.
     const key = new Request(url.origin + url.pathname);
-    event.respondWith(
-        fetch(request)
-            .then((response) => {
-                if (response.ok) {
-                    const copy = response.clone();
-                    caches.open(VERSION).then((cache) => cache.put(key, copy));
-                }
-                return response;
-            })
-            .catch(() => caches.match(key)),
-    );
+    const v = url.searchParams.get('v');
+    const fromNetwork = () => fetch(request).then((response) => {
+        // Another build's file never replaces this build's copy.
+        if (response.ok && (!v || v === BUILD)) {
+            const copy = response.clone();
+            caches.open(VERSION).then((cache) => cache.put(key, copy));
+        }
+        return response;
+    });
+    // This build's own files were cached when the worker installed and never change:
+    // they come straight from the cache, with no trip to the network.
+    if (BUILD && v === BUILD) {
+        event.respondWith(caches.match(key).then((hit) => hit || fromNetwork()));
+        return;
+    }
+    // Files and manifests wait a few seconds at most; anything else only falls back offline.
+    const steady = url.pathname.startsWith('/static/') || url.pathname.startsWith('/manifest/');
+    event.respondWith(steady ? patient(fromNetwork(), () => caches.match(key)) : fromNetwork().catch(() => caches.match(key)));
 });

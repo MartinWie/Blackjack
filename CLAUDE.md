@@ -31,7 +31,11 @@ needs to know.
   belong in the service worker's `SHELL` list in `static/sw.js`; its `VERSION` is
   replaced with the build id when served, so every deploy refreshes the cache. A new
   page that must work offline has to be precached there too —
-  `/solo` is, which is what makes a plane work.
+  `/solo` is, which is what makes a plane work. A `?v=<build>` asset is served
+  `immutable` and, once the worker of that build is installed, straight from its cache
+  (no network trip); anything else is network first, falling back to the cache after
+  a few seconds. One missing SHELL entry fails the install and offline play with it;
+  `check:offline` (part of the release build) guards that.
 - Port is 8090 (huus 8080, feedbackr 8081).
 - **`/` depends on the Host.** `blackjack.*` serves the lobby there, so a link back
   to the launcher goes to `/games`, never `/`.
@@ -108,6 +112,7 @@ npm run check:sweets # Sweet Swap levels: bot-calibrated budgets, won from the p
 npm run check:picnic # Ant Picnic levels: each winnable by the order it was built from
 npm run check:draft  # Draft Battle: deterministic battles, the ring, card against card, the bot
 npm run check:cells  # Cell Survivor: seeded chapters and the difficulty curve
+npm run check:offline # the service worker's shell: every file exists, every game file is in it
 bash start.sh        # Tailwind, engine bundle, jar, run
 ```
 

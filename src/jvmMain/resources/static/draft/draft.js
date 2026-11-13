@@ -87,6 +87,23 @@
         return IMG(id);
     }
 
+    /**
+     * Every card picture and army chip, loaded and decoded once at the start and held here,
+     * so an offer shows its art at once instead of fetching it as the cards fly in.
+     */
+    const preloaded = [];
+    function preloadArt() {
+        const urls = new Set();
+        for (const id of Object.keys(E.CARDS)) urls.add(artOf(id));
+        for (const t of [...E.TROOPS, 'tower', 'catapult']) urls.add(IMG(`${t}-red`));
+        for (const url of urls) {
+            const img = new Image();
+            img.src = url;
+            if (img.decode) img.decode().catch(() => { /* shown when it comes */ });
+            preloaded.push(img);
+        }
+    }
+
     const names = (types) => types.map((t) => PLURAL[t]).join(' and ');
     /** A multiplier as a player reads it: ×1.6, ×2, ×3.4. */
     const times = (id) => `×${(E.factor(id) / 100).toFixed(1).replace(/\.0$/, '')}`;
@@ -1653,6 +1670,8 @@
     els.themAvatar.innerHTML = `<img src="${IMG('knight-red')}" alt="">`;
     els.fastBtn.classList.toggle('on', store.fast);
     els.fastBtn.setAttribute('aria-pressed', String(store.fast));
+    // After the first screen, while nothing else is loading: offers come after a tap anyway.
+    (window.requestIdleCallback || ((fn) => setTimeout(fn, 300)))(preloadArt);
     renderHome();
     showScreen('home');
     const invited = new URLSearchParams(location.search).get('room');
